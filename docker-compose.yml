@@ -1,0 +1,117 @@
+name: ai_box_infra
+
+# Shared-стек экосистемы AiBox: вход (nginx+TLS), MariaDB, Redis, Qdrant,
+# browserless. Приложения живут в своих репозиториях и подключаются к
+# внешней сети `ecosystem` (создаётся этим стеком, attachable).
+#
+# Контракт имён на сети ecosystem (используются в nginx/conf.d/*):
+#   ai-box-php:9000        — php-fpm приложения ai-box
+#   ai-box-dr-php:9000     — php-fpm приложения ai-box-data-registry
+#   ai-box-mcp-php:9000    — php-fpm приложения ai-box-mcp
+# Инфра-сервисы доступны приложениям по именам: mariadb, redis, qdrant,
+# browserless, gateway (внутренние vhost'ы DR/MCP на 8083/8084).
+
+services:
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: infra_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot:ro
+      # Код приложений: пути внутри nginx обязаны совпадать с путями внутри
+      # php-fpm контейнеров (SCRIPT_FILENAME = $document_root$fastcgi_script_name).
+      - ${APPS_ROOT:-/var/www}/ai-box:/var/www/ai-box:ro
+      - ${APPS_ROOT:-/var/www}/ai-box-front/dist:/var/www/ai-box-front/dist:ro
+      - ${APPS_ROOT:-/var/www}/ai-box-data-registry:/var/www/ai-box-data-registry:ro
+      - ${APPS_ROOT:-/var/www}/ai-box-mcp:/var/www/ai-box-mcp:ro
+    networks:
+      ecosystem:
+        aliases:
+          - gateway
+
+  # Одноразовые запуски через Makefile (certs-init/certs-renew); в фоне не работает.
+  certbot:
+    image: certbot/certbot:latest
+    profiles: [certs]
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    networks:
+      - ecosystem
+
+  mariadb:
+    image: mariadb:11.8
+    container_name: infra_mariadb
+    restart: unless-stopped
+    # Только loopback хоста — для ручного администрирования; приложения ходят по сети.
+    ports:
+      - "127.0.0.1:3306:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD обязателен}
+      # Пароли app-пользователей читает mariadb/initdb/01-apps.sh при первом старте
+      AI_BOX_DB_PASSWORD: ${AI_BOX_DB_PASSWORD:?}
+      AI_BOX_DR_DB_PASSWORD: ${AI_BOX_DR_DB_PASSWORD:?}
+      AI_BOX_MCP_DB_PASSWORD: ${AI_BOX_MCP_DB_PASSWORD:?}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./mariadb/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+      - ./mariadb/initdb:/docker-entrypoint-initdb.d:ro
+    networks:
+      - ecosystem
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: infra_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD обязателен}
+    volumes:
+      - redis_data:/data
+    networks:
+      - ecosystem
+
+  qdrant:
+    # Версия совпадает с текущим продом data-registry — обновлять синхронно с ним.
+    image: qdrant/qdrant:v1.12.4
+    container_name: infra_qdrant
+    restart: unless-stopped
+    # Наружу не светим; loopback — для ручной диагностики.
+    ports:
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - ecosystem
+
+  browserless:
+    image: browserless/chrome:latest
+    container_name: infra_browserless
+    restart: unless-stopped
+    shm_size: "1gb"
+    environment:
+      TOKEN: ${BROWSERLESS_TOKEN:?BROWSERLESS_TOKEN обязателен}
+      MAX_CONCURRENT_SESSIONS: 5
+      CONNECTION_TIMEOUT: 30000
+      MAX_QUEUE_LENGTH: 10
+      PREBOOT_CHROME: "true"
+    networks:
+      - ecosystem
+
+volumes:
+  mariadb_data:
+  redis_data:
+  qdrant_data:
+  letsencrypt:
+  certbot_webroot:
+
+networks:
+  ecosystem:
+    name: ecosystem
+    driver: bridge
+    attachable: true
