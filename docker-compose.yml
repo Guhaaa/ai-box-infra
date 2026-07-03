@@ -20,8 +20,17 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      # Домены копии: entrypoint официального образа прогоняет
+      # nginx/templates/*.template через envsubst → conf.d (домены и путь
+      # сертификата параметризованы, вторая копия живёт на своих доменах).
+      FRONT_DOMAIN: ${FRONT_DOMAIN:?FRONT_DOMAIN обязателен}
+      API_DOMAIN: ${API_DOMAIN:?}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?}
+      CERT_NAME: ${CERT_NAME:-${FRONT_DOMAIN}}
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d
       - ./nginx/snippets:/etc/nginx/snippets:ro
       - letsencrypt:/etc/letsencrypt:ro
       - certbot_webroot:/var/www/certbot:ro

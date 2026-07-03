@@ -3,8 +3,12 @@
 
 COMPOSE = docker compose
 
-# Домены одного SAN-сертификата
-DOMAINS = -d ai-box.amulex.ru -d api.ai-box.amulex.ru -d admin.ai-box.amulex.ru
+# Домены и пароли — из .env этой копии
+-include .env
+export
+
+# Домены одного SAN-сертификата (первый задаёт имя lineage = CERT_NAME)
+DOMAINS = -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN)
 CERT_EMAIL ?= admin@amulex.ru
 
 .PHONY: up down restart ps logs build-base mariadb-cli redis-cli \

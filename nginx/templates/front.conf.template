@@ -1,8 +1,8 @@
-# ai-box.amulex.ru — только фронт SPA (ai-box-front/dist). Никакого PHP.
+# ${FRONT_DOMAIN} — только фронт SPA (ai-box-front/dist). Никакого PHP.
 
 server {
     listen 80;
-    server_name ai-box.amulex.ru;
+    server_name ${FRONT_DOMAIN};
     include snippets/acme.conf;
     location / {
         return 301 https://$host$request_uri;
@@ -12,8 +12,10 @@ server {
 server {
     listen 443 ssl;
     http2 on;
-    server_name ai-box.amulex.ru;
+    server_name ${FRONT_DOMAIN};
 
+    ssl_certificate     /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
     include snippets/ssl.conf;
 
     access_log /var/log/nginx/ai-box.access.log;
