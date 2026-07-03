@@ -1,0 +1,26 @@
+# ${ROOT_DOMAIN} — корневой домен. Пока — только редирект на app (${FRONT_DOMAIN});
+# если появится лендинг, этот vhost заменяется на раздачу статики.
+
+server {
+    listen 80;
+    server_name ${ROOT_DOMAIN};
+    include snippets/acme.conf;
+    location / {
+        return 301 https://${FRONT_DOMAIN}$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${ROOT_DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
+    include snippets/ssl.conf;
+
+    access_log /var/log/nginx/root.access.log;
+    error_log  /var/log/nginx/root.error.log;
+
+    return 301 https://${FRONT_DOMAIN}$request_uri;
+}

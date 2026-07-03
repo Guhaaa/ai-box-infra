@@ -8,7 +8,7 @@ COMPOSE = docker compose
 export
 
 # Домены одного SAN-сертификата (первый задаёт имя lineage = CERT_NAME)
-DOMAINS = -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN)
+DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN)
 CERT_EMAIL ?= admin@amulex.ru
 
 .PHONY: up down restart ps logs build-base mariadb-cli redis-cli \

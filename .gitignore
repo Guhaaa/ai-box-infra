@@ -1,5 +1,6 @@
 .env
 # Рендер nginx-шаблонов (envsubst из nginx/templates/ при старте контейнера)
+nginx/conf.d/root.conf
 nginx/conf.d/front.conf
 nginx/conf.d/api.conf
 nginx/conf.d/admin.conf
