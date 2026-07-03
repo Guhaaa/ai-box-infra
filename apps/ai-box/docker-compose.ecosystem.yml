@@ -1,0 +1,61 @@
+name: ai_box_eco
+
+# Тонкий прод-стек ai-box на общей инфре (репозиторий ai-box-infra):
+# nginx/MariaDB/Redis/browserless — там, здесь только контейнеры приложения.
+# Предусловия: поднят стек ai-box-infra (сеть ecosystem, образ
+# aibox/php-base:8.3 собран его `make build-base`).
+#
+# Контракты (см. README ai-box-infra): nginx ждёт fpm по имени
+# ai-box-php:9000; код смонтирован по одинаковому пути /var/www/ai-box
+# здесь и в nginx. Хосты зависимостей в .env: DB_HOST=mariadb,
+# REDIS_HOST=redis (DB 0/1), BROWSERLESS ws://browserless:3000.
+#
+# Старый прод-стек (.docker/docker-compose.prod.yml, network_mode: host) —
+# рядом до завершения переезда; см. runbook split-cutover-ai-box в ai-box-infra.
+
+services:
+
+  php:
+    image: aibox/php-base:8.3
+    container_name: ai-box-php
+    restart: unless-stopped
+    working_dir: /var/www/ai-box
+    user: "${PHP_UID:-1001}:${PHP_GID:-1001}"
+    volumes:
+      - ../:/var/www/ai-box
+      - ./php/prod.ini:/usr/local/etc/php/conf.d/prod.ini
+      - ./php/php-fpm-ecosystem.conf:/usr/local/etc/php-fpm.d/zz-prod.conf
+      - php_logs:/var/log/php
+    networks:
+      - ecosystem
+
+  queue:
+    image: aibox/php-base:8.3
+    container_name: ai-box-queue
+    restart: unless-stopped
+    working_dir: /var/www/ai-box
+    user: "${PHP_UID:-1001}:${PHP_GID:-1001}"
+    # Параметры воркера — как в старом проде: пауза на пустых итерациях,
+    # перезапуск раз в час против накопления памяти.
+    command: >
+      php artisan queue:work redis
+      --queue=default
+      --tries=3
+      --timeout=180
+      --sleep=3
+      --max-time=3600
+    volumes:
+      - ../:/var/www/ai-box
+      - ./php/prod.ini:/usr/local/etc/php/conf.d/prod.ini
+      - php_logs:/var/log/php
+    depends_on:
+      - php
+    networks:
+      - ecosystem
+
+volumes:
+  php_logs:
+
+networks:
+  ecosystem:
+    external: true
