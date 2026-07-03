@@ -87,8 +87,10 @@ services:
       - ecosystem
 
   qdrant:
-    # Версия совпадает с текущим продом data-registry — обновлять синхронно с ним.
-    image: qdrant/qdrant:v1.12.4
+    # Версия цели ОБЯЗАНА быть >= версии источника данных (даунгрейд storage
+    # не поддерживается). Перед миграцией сверить фактическую версию
+    # qdrant-источника (GET /) и задать QDRANT_VERSION в .env.
+    image: qdrant/qdrant:${QDRANT_VERSION:-v1.12.4}
     container_name: infra_qdrant
     restart: unless-stopped
     # Наружу не светим; loopback — для ручной диагностики.
@@ -125,10 +127,11 @@ networks:
     name: ecosystem
     driver: bridge
     attachable: true
-    # Фиксированная подсеть: стабильный gateway-IP (172.30.0.1) — адрес хоста
-    # для контейнеров, если что-то останется в systemd на хосте (ollama-пул),
-    # и предсказуемые правила firewall.
+    # Фиксированная подсеть: стабильный gateway-IP — адрес хоста для
+    # контейнеров, если что-то останется вне докера на хосте (ollama-пул),
+    # и предсказуемые правила firewall. Перед запуском проверить занятость
+    # диапазона (`ip route`) и при пересечении задать свой в .env.
     ipam:
       config:
-        - subnet: 172.30.0.0/24
-          gateway: 172.30.0.1
+        - subnet: ${ECOSYSTEM_SUBNET:-172.30.0.0/24}
+          gateway: ${ECOSYSTEM_GATEWAY:-172.30.0.1}

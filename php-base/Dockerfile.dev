@@ -1,0 +1,11 @@
+# Dev-вариант базового образа: прод-база + xdebug.
+# Сборка: make build-base-dev (тег aibox/php-base:8.3-dev).
+# Используется eco-стеками приложений на dev-машинах:
+#   PHP_BASE_IMAGE=aibox/php-base:8.3-dev в .env приложения.
+
+FROM aibox/php-base:8.3
+
+RUN apt-get update && apt-get install -y $PHPIZE_DEPS \
+    && pecl install xdebug \
+    && docker-php-ext-enable xdebug \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*

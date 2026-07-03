@@ -11,8 +11,8 @@ export
 DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN)
 CERT_EMAIL ?= admin@amulex.ru
 
-.PHONY: up down restart ps logs build-base mariadb-cli redis-cli \
-        certs-init certs-renew nginx-reload nginx-test db-import
+.PHONY: up down restart ps logs build-base build-base-dev mariadb-cli redis-cli \
+        certs-init certs-renew certs-selfsigned nginx-reload nginx-test db-import
 
 up:
 	$(COMPOSE) up -d
@@ -33,6 +33,10 @@ logs:
 # Приложения используют его как FROM/image: aibox/php-base:8.3
 build-base:
 	docker build -t aibox/php-base:8.3 php-base
+
+# Dev-вариант (+xdebug) для eco-стеков на dev-машинах
+build-base-dev: build-base
+	docker build -t aibox/php-base:8.3-dev -f php-base/Dockerfile.dev php-base
 
 mariadb-cli:
 	$(COMPOSE) exec mariadb mariadb -uroot -p$$DB_ROOT_PASSWORD
@@ -63,3 +67,15 @@ certs-init:
 certs-renew:
 	$(COMPOSE) run --rm certbot renew --webroot -w /var/www/certbot
 	$(MAKE) nginx-reload
+
+# Self-signed сертификат в volume letsencrypt (локальная разработка/репетиция).
+# SAN — все четыре домена из .env; lineage = CERT_NAME (default ROOT_DOMAIN).
+certs-selfsigned:
+	$(COMPOSE) run --rm --entrypoint sh certbot -c '\
+		CERT=$${CERT_NAME:-$(ROOT_DOMAIN)}; \
+		mkdir -p /etc/letsencrypt/live/$$CERT && \
+		openssl req -x509 -newkey rsa:2048 -nodes -days 365 \
+			-subj "/CN=$(ROOT_DOMAIN)" \
+			-addext "subjectAltName=DNS:$(ROOT_DOMAIN),DNS:$(FRONT_DOMAIN),DNS:$(API_DOMAIN),DNS:$(ADMIN_DOMAIN)" \
+			-keyout /etc/letsencrypt/live/$$CERT/privkey.pem \
+			-out /etc/letsencrypt/live/$$CERT/fullchain.pem'

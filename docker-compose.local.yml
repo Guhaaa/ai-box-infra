@@ -1,0 +1,26 @@
+# Локальный override (dev-машина): та же идея, что transition на бою —
+# стек живёт на альтернативных портах рядом с существующим окружением.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+#
+# ВАЖНО: перед выбором портов проверить занятость (`ss -tlnp`) — на каждой
+# машине занято своё (здесь, например, 8081 занят dev-nginx'ом DR, 6333 —
+# посторонним qdrant'ом). Сертификат — self-signed: make certs-selfsigned.
+
+services:
+
+  nginx:
+    # 443 на этой машине свободен — берём его сразу (домены *.ai-box.local
+    # через /etc/hosts работают в браузере без порта); 80 занят хостовым
+    # nginx, http-вход остаётся на 8090.
+    ports: !override
+      - "127.0.0.1:8090:80"
+      - "443:443"
+
+  mariadb:
+    ports: !override
+      - "127.0.0.1:3310:3306"
+
+  qdrant:
+    # 6333/6334 на этой машине заняты; диагностика — docker exec
+    ports: !override []
