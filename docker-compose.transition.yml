@@ -1,0 +1,29 @@
+# Переходный override для in-place переезда на сервере, где ЕЩЁ работает
+# старая инфра (хостовые nginx/MariaDB и старый qdrant занимают боевые порты).
+# Новый стек поднимается рядом на альтернативных портах:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.transition.yml up -d
+#
+# Хостовый nginx на фазе переключения проксирует на 127.0.0.1:8444 (см.
+# docs/runbooks/split-cutover-ai-box.md). После вывода старой инфры стек
+# перезапускается без этого файла — забирает 80/443/3306.
+
+services:
+
+  nginx:
+    ports: !override
+      - "127.0.0.1:8081:80"
+      - "127.0.0.1:8444:443"
+    volumes:
+      # На переходный период сертификаты — хостовые (продлевает хостовый
+      # certbot). Совпадение destination заменяет volume letsencrypt.
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+
+  mariadb:
+    ports: !override
+      - "127.0.0.1:3307:3306"
+
+  qdrant:
+    # 6333 занят qdrant-контейнером старого стека data-registry
+    ports: !override
+      - "127.0.0.1:6334:6333"
