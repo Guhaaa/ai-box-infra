@@ -115,3 +115,10 @@ networks:
     name: ecosystem
     driver: bridge
     attachable: true
+    # Фиксированная подсеть: стабильный gateway-IP (172.30.0.1) — адрес хоста
+    # для контейнеров, если что-то останется в systemd на хосте (ollama-пул),
+    # и предсказуемые правила firewall.
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          gateway: 172.30.0.1
