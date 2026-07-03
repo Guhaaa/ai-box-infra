@@ -8,7 +8,7 @@ DOMAINS = -d ai-box.amulex.ru -d api.ai-box.amulex.ru -d admin.ai-box.amulex.ru
 CERT_EMAIL ?= admin@amulex.ru
 
 .PHONY: up down restart ps logs build-base mariadb-cli redis-cli \
-        certs-init certs-renew nginx-reload nginx-test
+        certs-init certs-renew nginx-reload nginx-test db-import
 
 up:
 	$(COMPOSE) up -d
@@ -32,6 +32,12 @@ build-base:
 
 mariadb-cli:
 	$(COMPOSE) exec mariadb mariadb -uroot -p$$DB_ROOT_PASSWORD
+
+# Импорт дампа при миграции со старого прода:
+#   make db-import DB=ai_box FILE=/path/ai_box.sql
+db-import:
+	test -n "$(DB)" && test -f "$(FILE)"
+	$(COMPOSE) exec -T mariadb mariadb -uroot -p$$DB_ROOT_PASSWORD $(DB) < $(FILE)
 
 redis-cli:
 	$(COMPOSE) exec redis redis-cli -a $$REDIS_PASSWORD
