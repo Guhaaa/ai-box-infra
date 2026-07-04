@@ -13,11 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: SSH-ключ
+        env:
+          DOITAI_SSH_KEY: ${{ secrets.DOITAI_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.DOITAI_SSH_KEY }}" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DOITAI_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -t ed25519 doitai.ru >> ~/.ssh/known_hosts 2>/dev/null
+          # host-ключ запинен (не TOFU через ssh-keyscan)
+          echo "doitai.ru ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKAzKhVYdxJvj3XWJPBAtH2BvNiCcYTUmrkL6rEQ0hQb" >> ~/.ssh/known_hosts
 
       - name: Деплой инфра-стека
         run: |
