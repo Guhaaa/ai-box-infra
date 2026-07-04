@@ -1,0 +1,42 @@
+# ${TEST_FRONT_DOMAIN} — только фронт SPA (ai-box-front/dist). Никакого PHP.
+
+server {
+    listen 80;
+    server_name ${TEST_FRONT_DOMAIN};
+    include snippets/acme.conf;
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${TEST_FRONT_DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
+    include snippets/ssl.conf;
+
+    access_log /var/log/nginx/ai-box.access.log;
+    error_log  /var/log/nginx/ai-box.error.log;
+
+    client_max_body_size 40M;
+
+    root /var/www/test/ai-box-front/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location ~* \.(css|js|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    location ~ /\.(ht|env|git) {
+        deny all;
+    }
+}

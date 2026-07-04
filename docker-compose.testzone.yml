@@ -1,0 +1,30 @@
+# Overlay тест-зоны: на одном сервере с «прод»-копией живёт тест-копия
+# (домены TEST_*, код из веток develop в ${APPS_ROOT}/test/*, свои БД в той
+# же MariaDB и свои Redis DB-индексы). App-стеки тест-копии поднимаются из
+# тест-клонов с параметрами APP_PREFIX/APP_CODE_PATH/ECO_PROJECT (см.
+# README, раздел «Тест-зона»).
+#
+# Подключение постоянно на конкретном хосте: симлинк
+#   ln -s docker-compose.testzone.yml docker-compose.override.yml
+# (docker compose подхватывает override автоматически, make up продолжает
+# работать; на хостах без тест-зоны симлинка нет — оверлей не участвует).
+
+services:
+
+  nginx:
+    environment:
+      TEST_FRONT_DOMAIN: ${TEST_FRONT_DOMAIN:?TEST_FRONT_DOMAIN обязателен (тест-зона)}
+      TEST_API_DOMAIN: ${TEST_API_DOMAIN:?}
+      TEST_ADMIN_DOMAIN: ${TEST_ADMIN_DOMAIN:?}
+    volumes:
+      # Шаблоны тест-vhost'ов кладутся в общий каталог templates по одному
+      # файлу (подкаталог conf.d не включается nginx'ом по умолчанию)
+      - ./nginx/templates-test/front.conf.template:/etc/nginx/templates/test-front.conf.template:ro
+      - ./nginx/templates-test/api.conf.template:/etc/nginx/templates/test-api.conf.template:ro
+      - ./nginx/templates-test/admin.conf.template:/etc/nginx/templates/test-admin.conf.template:ro
+      - ./nginx/templates-test/internal-test.conf.template:/etc/nginx/templates/test-internal.conf.template:ro
+      # Код тест-копии — те же пути, что видят php-fpm тест-контейнеров
+      - ${APPS_ROOT:-/var/www}/test/ai-box:/var/www/test/ai-box:ro
+      - ${APPS_ROOT:-/var/www}/test/ai-box-front/dist:/var/www/test/ai-box-front/dist:ro
+      - ${APPS_ROOT:-/var/www}/test/ai-box-data-registry:/var/www/test/ai-box-data-registry:ro
+      - ${APPS_ROOT:-/var/www}/test/ai-box-mcp:/var/www/test/ai-box-mcp:ro

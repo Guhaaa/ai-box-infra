@@ -1,0 +1,69 @@
+# Внутренние vhost'ы ТЕСТ-копии (не публикуются на хост, доступ только с
+# сети ecosystem через alias gateway): 8183 — DR-test, 8184 — MCP-test,
+# 8185 — ai-box-test (межсервисные вызовы тест-копии).
+
+server {
+    listen 8183;
+    server_name _;
+    root /var/www/test/ai-box-data-registry/public;
+    index index.php;
+    charset utf-8;
+    client_max_body_size 100M;
+
+    resolver 127.0.0.11 valid=10s;
+    set $dr_test_upstream ai-box-dr-test-php:9000;
+
+    location / {
+        try_files $uri /index.php?$query_string;
+    }
+    location ~ \.php$ {
+        include snippets/php-fastcgi.conf;
+        fastcgi_read_timeout 300;
+        fastcgi_pass $dr_test_upstream;
+    }
+    location ~ /\.(ht|env|git) { deny all; }
+}
+
+server {
+    listen 8184;
+    server_name _;
+    root /var/www/test/ai-box-mcp/public;
+    index index.php;
+    charset utf-8;
+    client_max_body_size 40M;
+
+    resolver 127.0.0.11 valid=10s;
+    set $mcp_test_upstream ai-box-mcp-test-php:9000;
+
+    location / {
+        try_files $uri /index.php?$query_string;
+    }
+    location ~ \.php$ {
+        include snippets/php-fastcgi.conf;
+        fastcgi_read_timeout 120;
+        fastcgi_pass $mcp_test_upstream;
+    }
+    location ~ /\.(ht|env|git) { deny all; }
+}
+
+server {
+    listen 8185;
+    server_name _;
+    root /var/www/test/ai-box/public;
+    index index.php;
+    charset utf-8;
+    client_max_body_size 40M;
+
+    resolver 127.0.0.11 valid=10s;
+    set $ai_box_test_int_upstream ai-box-test-php:9000;
+
+    location / {
+        try_files $uri /index.php?$query_string;
+    }
+    location ~ \.php$ {
+        include snippets/php-fastcgi.conf;
+        fastcgi_read_timeout 120;
+        fastcgi_pass $ai_box_test_int_upstream;
+    }
+    location ~ /\.(ht|env|git) { deny all; }
+}
