@@ -1,0 +1,38 @@
+#!/usr/bin/env sh
+# Git-хук commit-msg: проверяет актуальность вики при коммите.
+# Срабатывает на ЛЮБОЙ git commit в этом клоне — терминал, IDE, агент.
+# Если коммитятся изменения кода без правок .claude/wiki/, печатает
+# предупреждение в stderr. Коммит не блокируется — дисциплину держат
+# правило .claude/rules/wiki.md и команда /wiki-ingest. Трейлер
+# `Wiki: skip` в сообщении подавляет предупреждение.
+#
+# Не управляется beads. Хук активен, пока git config core.hooksPath указывает
+# на .beads/hooks (это локальная настройка клона, прописывается bd init).
+
+msg_file="$1"
+
+files=$(git diff --cached --name-only)
+[ -z "$files" ] && exit 0
+
+# Есть ли среди застейдженных файлы вики и файлы кода?
+# Файлы в .beads/ — служебный экспорт трекера, не код проекта; игнорируем.
+wiki_changed=0
+code_changed=0
+printf '%s\n' "$files" | grep -q '^\.claude/wiki/' && wiki_changed=1
+printf '%s\n' "$files" | grep -vE '^(\.claude/wiki/|\.beads/)' | grep -q . && code_changed=1
+
+# Код меняется, вика — нет: предупреждаем, но коммит пропускаем.
+if [ "$code_changed" -eq 1 ] && [ "$wiki_changed" -eq 0 ]; then
+  if [ -n "$msg_file" ] && grep -q 'Wiki: skip' "$msg_file" 2>/dev/null; then
+    exit 0
+  fi
+  echo "Внимание: в коммите есть изменения кода без обновления .claude/wiki/." >&2
+  echo "Варианты:" >&2
+  echo "  - запусти команду /wiki-ingest — она догонит вику по дельте кода" >&2
+  echo "    (см. .claude/commands/wiki-ingest.md);" >&2
+  echo "  - обнови затронутые страницы вручную (воркфлоу — .claude/rules/wiki.md);" >&2
+  echo "  - если правка тривиальна и вики не требует — добавь в сообщение" >&2
+  echo "    коммита трейлер 'Wiki: skip' (подавит это предупреждение)." >&2
+fi
+
+exit 0

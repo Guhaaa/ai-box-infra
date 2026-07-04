@@ -1,8 +1,32 @@
-# Project Instructions for AI Agents
+# ai-box-infra — правила для AI-агентов
 
-This file provides instructions and context for AI coding agents working on this project.
+## Язык
 
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
+- Отвечай и пиши комментарии по-русски.
+
+## Что это за репозиторий
+
+Shared-инфраструктура экосистемы AiBox: docker-compose стека (nginx+TLS,
+MariaDB, Redis, Qdrant, browserless), базовый PHP-образ, nginx-шаблоны,
+runbook'и переездов. Кода приложений здесь нет — только инфраструктура.
+Обзор — `README.md`, дизайн — `docs/superpowers/specs/`, процедуры —
+`docs/runbooks/`.
+
+## Рабочий процесс
+
+- В репозитории ведётся вика (`.claude/wiki/`) — перед задачей и по ходу
+  изменений действуй по `.claude/rules/wiki.md`.
+- Конфиги валидируются перед коммитом: `docker compose config --quiet`
+  (со всеми overlay-файлами и заполненным окружением), nginx-шаблоны —
+  рендером в контейнере (`nginx -t`, см. runbook'и).
+- Изменения контрактов (имена контейнеров, порты, DB-индексы Redis, пути
+  кода) согласовывай с README и app-репозиториями — контракты используют
+  ai-box, ai-box-data-registry, ai-box-mcp, pdn-cleaner, ollama-router.
+- Conventional Commits на русском: `<type>(<scope>): <описание>`.
+  Без Co-Authored-By.
+- Боевые операции (addons.amulex.ru) — только по runbook'ам из
+  `docs/runbooks/` и с явного разрешения человека.
+
 ## Beads Issue Tracker
 
 This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
@@ -22,49 +46,41 @@ bd close <id>         # Complete work
 - Run `bd prime` for detailed command reference and session close protocol
 - Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
 
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
+## Память
 
-## Session Completion
+В проекте параллельно работают две системы памяти. Чтобы не дублировать
+и не конфликтовать, разделяй по **назначению** знания:
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+- **`bd remember`** (beads) — **проектное** знание, относящееся к этому
+  репозиторию: гочи реализации, технические нюансы, ссылки на
+  shared-системы (Jira, GitLab, дашборды), командные конвенции, не
+  дотянувшиеся до `CLAUDE.md` или `.claude/wiki/`. Видно через
+  `bd prime` в каждой сессии Claude Code в этом репо.
+- **Claude auto-memory** (`~/.claude/projects/.../memory/`) — **личное**
+  знание текущего разработчика: профиль (`user`), личные предпочтения
+  общения (`feedback`). Не пиши сюда проектные команды и shared-ссылки
+  — это в `bd remember`.
 
-**MANDATORY WORKFLOW:**
+Если знание спорное (личное или общекомандное?) — спроси.
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+Уточнение к правилу из секции «Beads Issue Tracker» выше («do NOT use
+MEMORY.md files»): оно касается **проектного** persistent knowledge —
+оно идёт в `bd remember`. Claude auto-memory остаётся в силе как
+канал **только** для личного знания.
 
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-<!-- END BEADS INTEGRATION -->
+### Замечание про репликацию `bd remember`
 
+`bd remember` хранится в локальной Dolt-БД (`.beads/embeddeddolt/`).
+**По умолчанию канал локальный** — записи живут только на машине того
+разработчика, кто их сделал. Для шаринга между клонами нужно настроить
+Dolt-репликацию: `bd dolt remote add` (DoltHub или self-hosted Dolt
+sql-server) либо опция `backup.git-push` в комбинации с
+`bd backup init`. Это инфраструктурное решение проекта.
 
-## Build & Test
-
-_Add your build and test commands here_
-
-```bash
-# Example:
-# npm install
-# npm test
-```
-
-## Architecture Overview
-
-_Add a brief overview of your project architecture_
-
-## Conventions & Patterns
-
-_Add your project-specific conventions here_
+Политика выше **работает в обоих режимах**: при включении репликации
+запись в `bd remember` автоматически становится shared для всех клонов;
+без репликации канал остаётся локально-проектным (но всё равно по
+назначению — про этот репозиторий, не про разработчика лично). Если
+репликация в проекте не настроена сознательно — зафиксируй это
+отдельной страницей в `.claude/wiki/decisions/` с trade-off'ами,
+чтобы в новой сессии агент не предлагал это «исправить».
