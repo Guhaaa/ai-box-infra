@@ -1,0 +1,24 @@
+name: Deploy doitai.ru
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-doitai-infra
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH-ключ
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DOITAI_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 doitai.ru >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Деплой инфра-стека
+        run: |
+          ssh guha@doitai.ru 'cd /var/www/ai-box-infra && git pull origin master && make build-base && make up && make nginx-reload'
