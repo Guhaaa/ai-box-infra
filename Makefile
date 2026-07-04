@@ -88,4 +88,4 @@ testzone-enable:
 	cp nginx/templates-test/admin.conf.template nginx/templates/test-admin.conf.template
 	cp nginx/templates-test/internal-test.conf.template nginx/templates/test-internal.conf.template
 	ln -sf docker-compose.testzone.yml docker-compose.override.yml
-	$(COMPOSE) up -d nginx
+	$(COMPOSE) up -d --force-recreate nginx
