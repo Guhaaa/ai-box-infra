@@ -30,13 +30,14 @@ updated: 2026-07-04
 - **Dev**: local-overlay, self-signed серты, домены `*.ai-box.local`
   через /etc/hosts, dev-образ с xdebug (`PHP_BASE_IMAGE`/`PHP_INI`/`PHP_UID`
   в `.env` приложений).
-- **doitai.ru** (развёрнут 2026-07-04): вторая копия, «всё внутри» в
-  **CPU-режиме** (GPU на хосте нет): базовый compose без overlay'ев (80/443
-  свободны), LE-сертификат через `certs-init`, домены doitai.ru, бренд
-  фронта `VITE_BRAND=doitai`; ollama-router + один ollama-инстанс
-  (cpu-override, qwen3:8b-q4_K_M + embeddinggemma), pdn-cleaner —
-  Dockerfile.cpu (torch без CUDA) + общий Redis DB 10; PHP_UID=1000
-  (guha на doitai). Деплой — GitHub Actions по push в master
+- **doitai.ru** (развёрнут 2026-07-04): вторая копия, **сплит** — Ollama и
+  pdn-cleaner внешние (`192.168.101.114`, приватная связность с VM есть,
+  проверена): в облаке тикет на добавление GPU; при появлении железа —
+  драйвер+toolkit и переключение на локальные GPU-стеки (CPU/GPU-заготовки
+  в репозиториях готовы, cpu-режим обкатан и свёрнут 2026-07-04). Базовый
+  compose без overlay'ев (80/443 свободны), LE-сертификат через
+  `certs-init`, домены doitai.ru, бренд фронта `VITE_BRAND=doitai`,
+  PHP_UID=1000 (guha на doitai). Деплой — GitHub Actions по push в master
   (`.github/workflows/deploy-doitai.yml` в пяти репо, секрет
   DOITAI_SSH_KEY). Гочи: bind-mount несуществующего каталога (dist)
   докер создаёт под root; compose с файлами в docker/ требует явный
