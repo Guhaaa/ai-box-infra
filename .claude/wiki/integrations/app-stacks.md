@@ -15,8 +15,10 @@ worker) от [[entity:php-base-image]], сеть `ecosystem` (external),
 (prod-дефолт / `:8.3-dev`), `PHP_INI` (prod.ini / local.ini),
 `PHP_UID`/`PHP_GID` (дефолт 1001 = guha на бою; dev 1000).
 
-- **ai-box** — `ai-box-php` + `ai-box-queue` (queue:work redis);
-  Makefile: `eco-*` таргеты, `eco-deploy` без build-стадии.
+- **ai-box** — `ai-box-php` + `ai-box-queue` (queue:work redis) +
+  `ai-box-scheduler` (schedule:work — биллинг, снапшоты, чистки; на старом
+  проде шедулер не был настроен вовсе, заведён 2026-07-04, проверен на
+  обеих копиях). Makefile: `eco-*` таргеты, `eco-deploy` без build-стадии.
 - **ai-box-data-registry** — `ai-box-dr-php` + `ai-box-dr-worker`;
   канонический путь исправляет опечатку старого прода.
 - **ai-box-mcp** — только `ai-box-mcp-php`; `eco-deploy` включает
