@@ -4,3 +4,8 @@ nginx/conf.d/root.conf
 nginx/conf.d/front.conf
 nginx/conf.d/api.conf
 nginx/conf.d/admin.conf
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
