@@ -11,7 +11,7 @@ export
 DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN)
 CERT_EMAIL ?= admin@amulex.ru
 
-.PHONY: up down restart ps logs build-base build-base-dev mariadb-cli redis-cli \
+.PHONY: up down restart ps logs build-base build-base-dev testzone-enable mariadb-cli redis-cli \
         certs-init certs-renew certs-selfsigned nginx-reload nginx-test db-import
 
 up:
@@ -79,3 +79,13 @@ certs-selfsigned:
 			-addext "subjectAltName=DNS:$(ROOT_DOMAIN),DNS:$(FRONT_DOMAIN),DNS:$(API_DOMAIN),DNS:$(ADMIN_DOMAIN)" \
 			-keyout /etc/letsencrypt/live/$$CERT/privkey.pem \
 			-out /etc/letsencrypt/live/$$CERT/fullchain.pem'
+
+# Активация тест-зоны на хосте: тест-шаблоны в общий каталог templates
+# + постоянный override (подробности — docker-compose.testzone.yml).
+testzone-enable:
+	cp nginx/templates-test/front.conf.template nginx/templates/test-front.conf.template
+	cp nginx/templates-test/api.conf.template nginx/templates/test-api.conf.template
+	cp nginx/templates-test/admin.conf.template nginx/templates/test-admin.conf.template
+	cp nginx/templates-test/internal-test.conf.template nginx/templates/test-internal.conf.template
+	ln -sf docker-compose.testzone.yml docker-compose.override.yml
+	$(COMPOSE) up -d nginx

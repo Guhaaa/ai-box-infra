@@ -9,3 +9,6 @@ nginx/conf.d/admin.conf
 .dolt/
 *.db
 .beads-credential-key
+
+# Тест-шаблоны, доставленные testzone-enable
+nginx/templates/test-*.conf.template

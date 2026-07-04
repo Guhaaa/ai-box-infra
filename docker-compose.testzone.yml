@@ -17,12 +17,8 @@ services:
       TEST_API_DOMAIN: ${TEST_API_DOMAIN:?}
       TEST_ADMIN_DOMAIN: ${TEST_ADMIN_DOMAIN:?}
     volumes:
-      # Шаблоны тест-vhost'ов кладутся в общий каталог templates по одному
-      # файлу (подкаталог conf.d не включается nginx'ом по умолчанию)
-      - ./nginx/templates-test/front.conf.template:/etc/nginx/templates/test-front.conf.template:ro
-      - ./nginx/templates-test/api.conf.template:/etc/nginx/templates/test-api.conf.template:ro
-      - ./nginx/templates-test/admin.conf.template:/etc/nginx/templates/test-admin.conf.template:ro
-      - ./nginx/templates-test/internal-test.conf.template:/etc/nginx/templates/test-internal.conf.template:ro
+      # Шаблоны тест-vhost'ов доставляются в nginx/templates/ на хосте
+      # командой `make testzone-enable` (файл-маунт внутрь ro-тома невозможен).
       # Код тест-копии — те же пути, что видят php-fpm тест-контейнеров
       - ${APPS_ROOT:-/var/www}/test/ai-box:/var/www/test/ai-box:ro
       - ${APPS_ROOT:-/var/www}/test/ai-box-front/dist:/var/www/test/ai-box-front/dist:ro
