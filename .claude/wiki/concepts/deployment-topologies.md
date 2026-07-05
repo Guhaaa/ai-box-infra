@@ -30,6 +30,13 @@ updated: 2026-07-04
 - **Dev**: local-overlay, self-signed серты, домены `*.ai-box.local`
   через /etc/hosts, dev-образ с xdebug (`PHP_BASE_IMAGE`/`PHP_INI`/`PHP_UID`
   в `.env` приложений).
+- **test.doitai.ru** (тест-зона, полный dev-контур из develop): ai-box-test
+  + DR-test + MCP-test, каждый свой клон (ветка develop), своя БД
+  (ai_box_test / ai_box_dr_test / ai_box_mcp_test), Redis-индексы (2/3, 4/5,
+  14/15), контейнеры с префиксом *-test, внутренние vhost'ы gateway
+  8183/8184/8185. Тест ai-box ходит в ТЕСТ DR/MCP (не общие), MCP — в тест
+  ai-box (8185). Общие с prod-копией: infra-стек, Qdrant, GPU (ollama/pdn).
+  Деплой: GitHub Actions push в develop → deploy-doitai-test.yml (все app-репо).
 - **doitai.ru** (развёрнут 2026-07-04): вторая копия, **сплит** — Ollama и
   pdn-cleaner внешние (`192.168.101.114`, приватная связность с VM есть,
   проверена): в облаке тикет на добавление GPU; при появлении железа —
