@@ -16,16 +16,26 @@ Container Toolkit 1.19, nvidia runtime в docker. ollama-router — single-GPU
 режим (`docker-compose.gpu-single.yml` + `config.single.yaml`), модели на
 отдельном диске `/mnt/data/ollama` (`OLLAMA_MODELS_DIR`); qwen3:8b-q4_K_M
 100% GPU, ~85 ток/с. Приложения doitai (осн.+тест) ходят на локальный
-`ollama-router:11434`. **pdn-cleaner пока внешний** (192.168.101.114) —
-ждёт HF_TOKEN для приватной модели.
+`ollama-router:11434`. **pdn-cleaner тоже на GPU** (2026-07-05): GPU-образ
+(torch cu124), модель на `/mnt/data/pdn-models`, BERT-NER на карте
+(`torch.cuda.is_available()`), маскирование проверено. ollama и pdn делят
+одну карту on-demand (обе грузят модель в VRAM только на запрос, пик
+~9G из 11G). PDN_CLEANER_URL приложений (осн+тест) → `ai-box-pdn-cleaner:8000`.
 
 Грабли установки GPU (боевые уроки, вшиты в конфиги):
 - метапакет `nvidia-driver` НЕ тянет `libcuda1` → без libcuda.so.1
-  `nvidia-smi` работает (utility), но CUDA N/A и ollama падает на CPU;
+  `nvidia-smi` работает (utility), но CUDA N/A и инференс на CPU;
   ставить `libcuda1` явно;
 - nvidia-runtime через `deploy.reservations.devices` даёт только utility —
-  нужен `NVIDIA_DRIVER_CAPABILITIES=compute,utility` в env ollama (иначе CPU);
-- одна карта → single-GPU override (второй инстанс под profile multi).
+  нужен `NVIDIA_DRIVER_CAPABILITIES=compute,utility` в env (иначе CPU) —
+  касается И ollama, И pdn (torch не видит CUDA);
+- одна карта → single-GPU override ollama (второй инстанс под profile multi);
+- у pdn и ollama compose-файлы в подкаталогах (.docker/ и docker/) → имя
+  проекта по умолчанию «docker» пересекается; заданы явные `name:`
+  (ai_box_pdn / ollama_router), иначе remove-orphans одного убьёт другой;
+- pdn GPU-образ (полный cu124-стек: cudnn/cublas/triton) тяжёл для сборки
+  (пик ~25G из-за дублирования uv-кэша) → `UV_NO_CACHE=1` в Dockerfile;
+  диск sdb расширен до 50G (hot-resize online).
 
 В прод-сплите (addons) GPU-сервисы работают по-старому на LAN-хосте
 `192.168.101.114`:
