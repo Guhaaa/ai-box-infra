@@ -22,5 +22,5 @@
 
 ## Решения (`decisions/`)
 
-- (наполняется при закрытии задач beads; дизайн-история до вики — в
-  `docs/superpowers/specs/` и runbook'ах)
+- [[decision:orchestration-no-k8s]] — оркестрация: docker-compose, не k8s; bootstrap скриптом, не Ansible.
+- (прочая дизайн-история до вики — в `docs/superpowers/specs/` и runbook'ах)
