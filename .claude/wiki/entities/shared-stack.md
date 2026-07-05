@@ -34,6 +34,23 @@ updated: 2026-07-04
 - `docker-compose.prod-local.yml` — некоммитный, локальный для конкретного
   хоста (на бою: nginx-mount MCP из `/var/www/ai-box-mcp-eco`).
 
+## Prod-тюнинг (2026-07-05)
+
+- **MariaDB**: `innodb_buffer_pool_size` через env `MARIADB_BUFFER_POOL`
+  (command-override, дефолт 512M — безопасен; doitai 4G, addons задать под
+  свой RAM). my.cnf: O_DIRECT, `flush_log_at_trx_commit=2` (быстрее запись,
+  риск ≤1с при аварии ОС), log 256M, max_connections 200.
+- **Redis**: `--maxmemory ${REDIS_MAXMEMORY:-512mb} --maxmemory-policy
+  volatile-lru` — вытесняется только кэш (ключи с TTL), очереди-jobs (без
+  TTL) не теряются.
+- **Nginx**: gzip текстовых ответов (nginx/conf.d/00-optimize.conf),
+  fastcgi_buffers (крупные JSON не во временные файлы), server_tokens off.
+- **opcache** (приложения): уже оптимален (JIT, validate_timestamps=0,
+  128M); сброс при деплое покрыт `restart php` в eco-deploy.
+
+Env под RAM хоста (задать в `.env` каждого сервера): `MARIADB_BUFFER_POOL`
+(~50-70% RAM под БД), `REDIS_MAXMEMORY` (граница против OOM).
+
 ## Makefile
 
 `up/down/logs`, `build-base`/`build-base-dev`, `certs-init` (standalone до

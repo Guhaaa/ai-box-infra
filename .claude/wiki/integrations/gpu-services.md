@@ -23,6 +23,16 @@ Container Toolkit 1.19, nvidia runtime в docker. ollama-router — single-GPU
 qwen3:8b 6.2G + embeddinggemma 0.8G + pdn BERT 0.87G = ~7.9G из 11G.
 PDN_CLEANER_URL приложений (осн+тест) → `ai-box-pdn-cleaner:8000`.
 
+**GPU-тюнинг (2026-07-05):** OLLAMA_FLASH_ATTENTION=1 + OLLAMA_KV_CACHE_TYPE=q8_0
+(x-ollama env в docker-compose.prod.yml) — вдвое режут KV-cache под контекст,
+на текущих малых контекстах (4096/2048) выигрыш в пределах шума, но защищают
+VRAM на длинных. nvidia-persistenced (systemd, хостовый) держит драйвер
+загруженным. NUM_PARALLEL=2/MAX_LOADED=2 оставлены (запас ~3G). fp16 для BERT
+рассмотрен и ОТКЛОНЁН: для маленькой модели (~110M) на коротких текстах
+доминирует CUDA-overhead, fp16 дал рост VRAM без ускорения → откачен, BERT
+на GPU в fp32. Применимость к addons: flash/kv из prod.yml безопасны для
+мульти-GPU пула; single-GPU override и persistenced — специфика хоста.
+
 **Как модели удерживаются в VRAM (боевые находки):**
 - ollama: `min_replicas` hints в config.single.yaml → preloader роутера шлёт
   warm-up с keep_alive=-1 при старте. НО preloadModel слал только
