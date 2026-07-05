@@ -60,6 +60,10 @@ services:
     image: mariadb:11.8
     container_name: infra_mariadb
     restart: unless-stopped
+    # buffer_pool — под RAM хоста через .env (MARIADB_BUFFER_POOL): doitai 16G
+    # → 4G, addons-прод — своё значение; дефолт 512M безопасен для любого хоста.
+    # Остальной тюнинг — в mariadb/my.cnf. Args идут в mysqld поверх my.cnf.
+    command: --innodb-buffer-pool-size=${MARIADB_BUFFER_POOL:-512M}
     # Только loopback хоста — для ручного администрирования; приложения ходят по сети.
     ports:
       - "127.0.0.1:3306:3306"
@@ -80,7 +84,14 @@ services:
     image: redis:7.4-alpine
     container_name: infra_redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD обязателен}
+    # maxmemory-policy volatile-lru: под давлением памяти вытесняются ТОЛЬКО
+    # ключи с TTL (кэш Laravel), а очереди (jobs — без TTL) не теряются.
+    # maxmemory — граница против OOM, под RAM хоста через .env (дефолт 512mb).
+    command: >
+      redis-server --appendonly yes
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD обязателен}
+      --maxmemory ${REDIS_MAXMEMORY:-512mb}
+      --maxmemory-policy volatile-lru
     volumes:
       - redis_data:/data
     networks:
