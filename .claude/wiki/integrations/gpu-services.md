@@ -3,13 +3,32 @@ title: GPU-сервисы — ollama-router и pdn-cleaner
 type: integration
 tags: [gpu, ollama, pdn, split]
 sources: [README.md, docs/superpowers/specs/2026-07-03-ecosystem-infra-design.md]
-updated: 2026-07-04
+updated: 2026-07-05
 ---
 
 # GPU-сервисы
 
-Два сервиса с NVIDIA-зависимостью; в текущем проде (сплит) **не тронуты**
-и работают по-старому на LAN-хосте `192.168.101.114`:
+Два сервиса с NVIDIA-зависимостью.
+
+**doitai.ru (2026-07-05): GPU установлен, ollama переведён на карту.**
+RTX 2080 Ti (11 GiB), драйвер 550.163.01 (DKMS под ядро 6.12.94), NVIDIA
+Container Toolkit 1.19, nvidia runtime в docker. ollama-router — single-GPU
+режим (`docker-compose.gpu-single.yml` + `config.single.yaml`), модели на
+отдельном диске `/mnt/data/ollama` (`OLLAMA_MODELS_DIR`); qwen3:8b-q4_K_M
+100% GPU, ~85 ток/с. Приложения doitai (осн.+тест) ходят на локальный
+`ollama-router:11434`. **pdn-cleaner пока внешний** (192.168.101.114) —
+ждёт HF_TOKEN для приватной модели.
+
+Грабли установки GPU (боевые уроки, вшиты в конфиги):
+- метапакет `nvidia-driver` НЕ тянет `libcuda1` → без libcuda.so.1
+  `nvidia-smi` работает (utility), но CUDA N/A и ollama падает на CPU;
+  ставить `libcuda1` явно;
+- nvidia-runtime через `deploy.reservations.devices` даёт только utility —
+  нужен `NVIDIA_DRIVER_CAPABILITIES=compute,utility` в env ollama (иначе CPU);
+- одна карта → single-GPU override (второй инстанс под profile multi).
+
+В прод-сплите (addons) GPU-сервисы работают по-старому на LAN-хосте
+`192.168.101.114`:
 
 - **ollama-router** (репо ai-box-ollama-router) — Go-прокси + пул Ollama
   по одному на GPU, сейчас systemd. Авторизации нет → доступ только по
