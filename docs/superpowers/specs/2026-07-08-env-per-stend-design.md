@@ -36,36 +36,66 @@
 
 ## 1. Модель файлов env (layering)
 
-Три слоя, объединяются при деплое (последний слой перекрывает предыдущий):
+Каталог на стенд — файлы стенда лежат вместе, паттерн масштабируется на app-репо,
+gitignore чище плоских `.env.<stend>`:
+
+```
+env/
+  doitai/config.env      committed  — несекретный конфиг стенда
+  doitai/secrets.env     gitignored — секреты, на сервере
+  amulex/config.env
+  amulex/secrets.env
+  local/config.env
+  local/secrets.env
+  example/config.env     committed  — документация всех ключей (бывший .env.example)
+  example/secrets.env    committed  — шаблон секретных ключей
+```
+
+Два слоя на стенд, объединяются при деплое (secrets поверх config):
 
 | Файл | Содержит | В git? |
 |---|---|---|
-| `.env.example` | документация всех ключей (как сейчас) | да |
-| `.env.doitai` / `.env.amulex` / `.env.local` | **несекретный** конфиг стенда: `ROOT/FRONT/API/ADMIN_DOMAIN`, `CERT_NAME`, `APPS_ROOT`, `ECOSYSTEM_SUBNET/GATEWAY`, `QDRANT_VERSION`, `MARIADB_BUFFER_POOL`, `REDIS_MAXMEMORY` | **да** |
-| `.env.secrets` | только секреты: `DB_ROOT_PASSWORD`, `AI_BOX_DB_PASSWORD`, `AI_BOX_DR_DB_PASSWORD`, `AI_BOX_MCP_DB_PASSWORD`, `REDIS_PASSWORD`, `BROWSERLESS_TOKEN` | **нет** (на сервере) |
+| `env/<stend>/config.env` | **несекретный** конфиг: `ROOT/FRONT/API/ADMIN_DOMAIN`, `CERT_NAME`, `APPS_ROOT`, `ECOSYSTEM_SUBNET/GATEWAY`, `QDRANT_VERSION`, `MARIADB_BUFFER_POOL`, `REDIS_MAXMEMORY` | **да** |
+| `env/<stend>/secrets.env` | только секреты: `DB_ROOT_PASSWORD`, `AI_BOX_DB_PASSWORD`, `AI_BOX_DR_DB_PASSWORD`, `AI_BOX_MCP_DB_PASSWORD`, `REDIS_PASSWORD`, `BROWSERLESS_TOKEN` | **нет** (на сервере) |
+| `env/example/config.env` + `env/example/secrets.env` | документация/шаблоны всех ключей | да |
 
-На уровне infra стендов **три**: `doitai`, `amulex`, `local`. Тест-зона
-(`test.doitai.ru`) — overlay на том же doitai-хосте (общий infra-стек), а не
-отдельный infra-стенд, поэтому своего `.env.<stend>` не требует.
+На уровне infra стендов **три**: `doitai`, `amulex`, `local`. `STAND` = личность
+infra-копии (хоста), а не приложения.
 
-`.gitignore`: добавить `.env.secrets`; старый `.env` в игноре уже есть и остаётся
-(переходно), но на серверах файл удаляется (см. §5). Коммитим `.env.doitai`,
-`.env.amulex`, `.env.local`, `.env.secrets.example`, `.stand.example`.
+**Тест-зона на doitai — не отдельный `STAND`.** `test.doitai.ru` — overlay на том
+же doitai-хосте (общий infra-стек, симлинк `docker-compose.override.yml` →
+`docker-compose.testzone.yml`). Overlay читает от infra-стека три обязательных
+(`:?`) переменных nginx: `TEST_FRONT_DOMAIN`, `TEST_API_DOMAIN`,
+`TEST_ADMIN_DOMAIN` (плюс общие `APPS_ROOT`, `CERT_NAME`). Раз тест-зона физически
+живёт на doitai — эти ключи просто входят в **`env/doitai/config.env`**. На
+amulex/local симлинка override нет, `TEST_*` там не требуются. Так модель «каталог
+= конфиг хоста» покрывает и тест-зону без отдельного каталога/`STAND`. App-стеки
+тест-копии (ai-box-test и т.д.) — отдельные клоны со своим env в
+`${APPS_ROOT}/test/*`, деплоятся `deploy-doitai-test.yml`, вне скоупа infra.
 
-## 2. Выбор стенда — маркер `.stand`
+`.gitignore`: `env/*/secrets.env` + реинклюд `!env/example/secrets.env`; старый
+`.env` в игноре уже есть и остаётся (переходно), но на серверах файл удаляется
+(см. §5). Коммитим `env/{doitai,amulex,local}/config.env` и `env/example/*`.
 
-Файл **`.stand`** на сервере (non-committed, одна строка, напр. `doitai`).
-Сервер сам объявляет, кто он — снимает неоднозначность «оба прода тянут master».
-Коммитим `.stand.example` с пояснением.
+## 2. Выбор стенда — переменная окружения `STAND`
 
-Правки `Makefile`:
+Источник стенда — **только переменная окружения `STAND`**, дефолт `local`
+(отдельного файла-маркера нет). Так снимается неоднозначность «оба прода тянут
+master», и каждый стенд объявляет себя удобным ему способом:
+
+- **doitai**: GitHub-workflow подставляет `STAND=doitai` в env SSH-команды деплоя.
+- **amulex**: `export STAND=amulex` в окружении деплой-таргета (shell/Jenkins).
+- **ручной/локальный запуск**: дефолт `local` (или `STAND=… make …` разово).
+
+Правки `Makefile` (`?=` — env-переменная перекрывает дефолт):
 
 ```make
-STAND := $(shell cat .stand 2>/dev/null || echo local)
--include .env.$(STAND)
--include .env.secrets
+STAND  ?= local
+ENVDIR := env/$(STAND)
+-include $(ENVDIR)/config.env
+-include $(ENVDIR)/secrets.env
 export
-COMPOSE = docker compose --env-file .env.$(STAND) --env-file .env.secrets
+COMPOSE = docker compose --env-file $(ENVDIR)/config.env --env-file $(ENVDIR)/secrets.env
 ```
 
 `docker compose --env-file` можно указывать несколько раз — файлы мержатся,
@@ -93,42 +123,61 @@ eco-deploy: build-base up
 
 ## 4. Правка CI (`deploy-doitai.yml`)
 
-Заменить строку деплоя на вызов новой цели:
+Заменить строку деплоя, подставив `STAND=doitai` в env SSH-команды:
 
 ```
-ssh guha@doitai.ru 'cd /var/www/ai-box-infra && git pull origin master && make eco-deploy && make nginx-reload'
+ssh guha@doitai.ru 'cd /var/www/ai-box-infra && git pull origin master && export STAND=doitai && make eco-deploy nginx-reload'
 ```
 
-(`eco-deploy` уже включает `build-base` и `up`; `.stand` на doitai = `doitai`.)
+(`eco-deploy` уже включает `build-base` и `up`; `export` действует на оба
+make-вызова в этой шелл-сессии.)
 
 ## 5. Миграция (чистый переход)
 
 Порядок на каждом сервере (сначала doitai — боевой, по runbook и с разрешения):
 
 1. Из текущего `.env` выделить несекретные ключи → сверить с committed
-   `.env.<stend>` (значения уже должны совпасть — это и есть фиксация факта).
-2. Секретные ключи → создать `.env.secrets` (chmod 600).
-3. Создать `.stand` с именем стенда.
-4. Проверка: `make ps`, `docker compose config --quiet` — интерполяция не
-   потеряла переменных.
+   `env/<stend>/config.env` (значения уже должны совпасть — фиксация факта).
+2. Секретные ключи → создать `env/<stend>/secrets.env` (chmod 600).
+3. Прописать `STAND` в окружение деплоя (doitai — в workflow; amulex — `export`).
+4. Проверка: `STAND=<stend> make ps`, `docker compose config --quiet` —
+   интерполяция не потеряла переменных.
 5. Удалить старый `.env`.
 
 Боевой doitai мигрируется отдельным шагом по runbook, не в общем окне.
 
+## 6. Сплит (ollama/pdn) — тем же механизмом в app-репо
+
+Топология «сплит ↔ всё внутри» выражается **двумя env-ключами**:
+`OLLAMA_BASE_URL` и `PDN_CLEANER_URL` (сплит → LAN-хост `192.168.101.114`;
+всё внутри → docker-имена `ollama-router:11434` / `ai-box-pdn-cleaner:8000`).
+Их читают **app-контейнеры** (ai-box back и др.), а infra-стек
+(nginx/db/redis/qdrant/browserless) — нет. Поэтому в **infra-репо этих ключей
+нет**.
+
+Управление сплитом — тем же паттерном `STAND` + `env/<stend>/config.env`, но
+**в самих app-репо** (где ключи потребляются): после обкатки эталона на infra
+паттерн реплицируется в потребителей, и тогда `env/doitai/config.env` несёт
+docker-имена (всё внутри), `env/amulex/config.env` — LAN-URL (сплит). Флип
+топологии становится версионируемой правкой строки, а не ручной операцией на
+сервере. Для infra это — часть раскатки паттерна в app-репо (см. «Не в скоупе»),
+здесь фиксируем принцип: **сплит = per-stend env-атрибут потребителя, а не
+инфраструктурный overlay.**
+
 ## Что чинит
 
 - **Разбежка** → значения стендов в git, видны рядом в diff.
-- **Копирование** → на сервере руками только `.env.secrets` (6 ключей) + `.stand`.
+- **Копирование** → на сервере руками только `env/<stend>/secrets.env` (6 ключей).
 - **Дрейф** → несекретный конфиг под версионным контролем, `git diff` ловит расхождение.
 
 ## Deliverables (эта итерация, только infra)
 
-- `.env.doitai`, `.env.amulex`, `.env.local` (несекретные, committed).
-- `.env.secrets.example`, `.stand.example` (committed шаблоны).
-- Правки `Makefile` (STAND, layering, `COMPOSE`, цель `eco-deploy`).
+- `env/{doitai,amulex,local}/config.env` (несекретные, committed).
+- `env/example/config.env`, `env/example/secrets.env` (committed шаблоны).
+- Правки `Makefile` (`STAND ?= local`, ENVDIR, layering, `COMPOSE`, цель `eco-deploy`).
 - `deploy/post-deploy.sh` (committed, идемпотентный).
 - Правка `.github/workflows/deploy-doitai.yml`.
-- Правка `.gitignore` (`.env.secrets`).
+- Правка `.gitignore` (`env/*/secrets.env` + реинклюд `!env/example/secrets.env`).
 - Decision-страница в вике (`.claude/wiki/decisions/env-per-stend.md`) +
   обновление `deployment-topologies.md`, `log.md`, `index.md`.
 - Обновление runbook'а `release-develop-to-master.md` (пост-деплой шаг → hook).
@@ -136,5 +185,7 @@ ssh guha@doitai.ru 'cd /var/www/ai-box-infra && git pull origin master && make e
 ## Не в скоупе (следующие итерации)
 
 - Перенос паттерна в пять app-репо (через develop) — этот файл как шаблон.
+  **Именно там управляется сплит** (`OLLAMA_BASE_URL`/`PDN_CLEANER_URL`, см. §6):
+  `env/doitai/config.env` = всё внутри, `env/amulex/config.env` = сплит.
 - Шифрованный env в git (SOPS/git-crypt) — сознательно отвергнут в пользу split.
 - Секрет-стор (Vault) — избыточно для текущего масштаба.
