@@ -38,7 +38,13 @@ services:
       # Код приложений: пути внутри nginx обязаны совпадать с путями внутри
       # php-fpm контейнеров (SCRIPT_FILENAME = $document_root$fastcgi_script_name).
       - ${APPS_ROOT:-/var/www}/ai-box:/var/www/ai-box:ro
-      - ${APPS_ROOT:-/var/www}/ai-box-front/dist:/var/www/ai-box-front/dist:ro
+      # Фронт — монтируем РОДИТЕЛЬ, а не сам dist: если фронт деплоят
+      # release-схемой (dist → symlink на releases/<ts>), bind-mount самого
+      # dist разрезолвил бы symlink на момент старта контейнера и застрял бы на
+      # старом релизе (нужен рестарт nginx). Монтируя родителя, nginx резолвит
+      # symlink `dist` пер-запрос — свопы релизов долетают без рестарта. Для
+      # rsync-in-place (doitai: rsync в реальный dist/) тоже работает.
+      - ${APPS_ROOT:-/var/www}/ai-box-front:/var/www/ai-box-front:ro
       - ${APPS_ROOT:-/var/www}/ai-box-data-registry:/var/www/ai-box-data-registry:ro
       - ${APPS_ROOT:-/var/www}/ai-box-mcp:/var/www/ai-box-mcp:ro
     networks:

@@ -36,6 +36,12 @@ alias `gateway`: 8083 → data-registry, 8084 → MCP, 8085 → ai-box
   `fastcgi_pass`): nginx живёт независимо от контейнеров приложений.
 - Код приложений смонтирован в nginx по тем же путям, что и в php-fpm
   (`SCRIPT_FILENAME`); `fastcgi_read_timeout` задаётся в vhost'е (у DR 300с).
+- **Фронт монтируется РОДИТЕЛЕМ** (`ai-box-front:/var/www/ai-box-front:ro`), не
+  `.../dist`. Причина (боевой урок amulex): при release-схеме деплоя фронта
+  (`dist` → symlink на `releases/<ts>`) bind-mount самого `dist` разрезолвил бы
+  symlink на старте контейнера и застрял на старом релизе — новый релиз не виден
+  без рестарта nginx. Монтируя родителя, nginx резолвит `dist` пер-запрос; свопы
+  долетают без рестарта. Для rsync-in-place (doitai) тоже работает.
 
 ## Связи
 
