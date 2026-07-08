@@ -42,6 +42,7 @@ gitignore чище плоских `.env.<stend>`:
 ```
 env/
   doitai/config.env      committed  — несекретный конфиг стенда
+  doitai/testzone.env    committed  — TEST_*-домены, условный overlay-слой (см. ниже)
   doitai/secrets.env     gitignored — секреты, на сервере
   amulex/config.env
   amulex/secrets.env
@@ -62,16 +63,28 @@ env/
 На уровне infra стендов **три**: `doitai`, `amulex`, `local`. `STAND` = личность
 infra-копии (хоста), а не приложения.
 
-**Тест-зона на doitai — не отдельный `STAND`.** `test.doitai.ru` — overlay на том
-же doitai-хосте (общий infra-стек, симлинк `docker-compose.override.yml` →
-`docker-compose.testzone.yml`). Overlay читает от infra-стека три обязательных
-(`:?`) переменных nginx: `TEST_FRONT_DOMAIN`, `TEST_API_DOMAIN`,
-`TEST_ADMIN_DOMAIN` (плюс общие `APPS_ROOT`, `CERT_NAME`). Раз тест-зона физически
-живёт на doitai — эти ключи просто входят в **`env/doitai/config.env`**. На
-amulex/local симлинка override нет, `TEST_*` там не требуются. Так модель «каталог
-= конфиг хоста» покрывает и тест-зону без отдельного каталога/`STAND`. App-стеки
-тест-копии (ai-box-test и т.д.) — отдельные клоны со своим env в
-`${APPS_ROOT}/test/*`, деплоятся `deploy-doitai-test.yml`, вне скоупа infra.
+**Тест-зона на doitai — не отдельный `STAND`.** `STAND` выбирает деплой-таргет =
+отдельный `make up` со своим набором контейнеров. На doitai-хосте **физически один
+infra-стек**; тест-зона (`test.doitai.ru`) — overlay на нём (симлинк
+`docker-compose.override.yml` → `docker-compose.testzone.yml`), добавляющий vhost'ы
+в **тот же** nginx, а не поднимающий второй стек. Поэтому `STAND=doitai-test` на
+infra невозможен: он пересоздал бы единственный стек тест-значениями (те же имена
+контейнеров/проект) либо, при другом имени проекта, дал бы **второй nginx на
+:80/:443 → конфликт портов**. Отдельного infra-таргета «doitai-test» не существует.
+
+Overlay читает от infra-стека три обязательных (`:?`) переменных nginx:
+`TEST_FRONT_DOMAIN`, `TEST_API_DOMAIN`, `TEST_ADMIN_DOMAIN` (плюс общие
+`APPS_ROOT`, `CERT_NAME`, уже в `config.env`). Чтобы держать их **отдельно от
+prod-конфига без фикции второго стека**, они лежат в **`env/doitai/testzone.env`** —
+условном overlay-слое, который подключается ровно тогда, когда активен
+testzone-override (см. §2). Семантика честная: `doitai` — стенд (стек),
+`testzone.env` — доп. слой, а не отдельный `STAND`.
+
+App-стеки тест-копии (ai-box-test и т.д.) — отдельные клоны со своим env в
+`${APPS_ROOT}/test/*`, деплоятся `deploy-doitai-test.yml`. **На app-слое
+`doitai-test` — полноценный отдельный стенд** (`env/doitai-test/config.env`, все
+значения свои: `ai_box_test`, redis 2/3, VITE-ULID, домены приложения) — это
+раскатка паттерна в app-репо, вне скоупа infra.
 
 `.gitignore`: `env/*/secrets.env` + реинклюд `!env/example/secrets.env`; старый
 `.env` в игноре уже есть и остаётся (переходно), но на серверах файл удаляется
@@ -92,16 +105,25 @@ master», и каждый стенд объявляет себя удобным 
 ```make
 STAND  ?= local
 ENVDIR := env/$(STAND)
+# testzone.env подключается только если он есть в каталоге стенда (=doitai) —
+# тот же признак, что и активный testzone-override
+TESTZONE := $(wildcard $(ENVDIR)/testzone.env)
 -include $(ENVDIR)/config.env
+-include $(TESTZONE)
 -include $(ENVDIR)/secrets.env
 export
-COMPOSE = docker compose --env-file $(ENVDIR)/config.env --env-file $(ENVDIR)/secrets.env
+COMPOSE = docker compose --env-file $(ENVDIR)/config.env \
+          $(if $(TESTZONE),--env-file $(TESTZONE),) \
+          --env-file $(ENVDIR)/secrets.env
 ```
 
 `docker compose --env-file` можно указывать несколько раз — файлы мержатся,
 последний перекрывает (секреты поверх конфига). Так и Makefile-переменные
 (`-include`, для целей `db-import`/`mariadb-cli`/`certs-*`), и интерполяция
-`${VAR}` в compose-файле берут значения из той же пары файлов.
+`${VAR}` в compose-файле берут значения из тех же файлов. Условие `testzone.env`
+привязано к наличию файла в каталоге стенда: на doitai он есть (тест-зона активна),
+на amulex/local — нет, и слой не подключается (compose не ругнётся на
+отсутствующий `--env-file`).
 
 ## 3. Post-deploy hook
 
@@ -173,6 +195,7 @@ docker-имена (всё внутри), `env/amulex/config.env` — LAN-URL (с
 ## Deliverables (эта итерация, только infra)
 
 - `env/{doitai,amulex,local}/config.env` (несекретные, committed).
+- `env/doitai/testzone.env` (TEST_*-домены, committed, условный overlay-слой).
 - `env/example/config.env`, `env/example/secrets.env` (committed шаблоны).
 - Правки `Makefile` (`STAND ?= local`, ENVDIR, layering, `COMPOSE`, цель `eco-deploy`).
 - `deploy/post-deploy.sh` (committed, идемпотентный).
