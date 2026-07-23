@@ -45,3 +45,13 @@ UUID в оба .env + пересоздание (с -p и --env-file). Детал
 `nginx -t` чист на обоих; закрытый гейт → 403 на обеих поверхностях (assistant +
 i/{integration}). Боевая раскатка (reload, nc, реальный ASR-адрес, опц. firewall)
 — по runbook. Детали — [[decision:voice-dictation]]. bead `ai-box-infra-0fq`.
+
+## [2026-07-23] ingest | Раскатка голосовой диктовки на doitai (дев-контур)
+`.env` doitai += ASR_WS_UPSTREAM=192.168.100.29:49153. Инфра-коммит 1016c3e
+доставлен CI deploy-doitai.yml: прод-vhost отрендерил ASR-локацию (инертна,
+asr.enabled=false). Дев-контур test.doitai.ru: make testzone-enable
+(пере-копия тест-шаблонов — CI-`up` их не обновляет, они копии; + recreate).
+Достижимость ASR из nginx-контейнера подтверждена (nc → open, снят вопрос №1
+брифа). Закрытый гейт → 403 на api.test.doitai.ru (assistant + i/{integration}).
+Осталось: открытый гейт (asr.enabled=true в тест-ai-box — app-сторона) и amulex
+(отдельный деплой по runbook). Детали — [[decision:voice-dictation]]. bead 0fq.
