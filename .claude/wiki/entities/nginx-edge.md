@@ -3,7 +3,7 @@ title: Nginx-вход — шаблоны, TLS, внутренние vhost'ы
 type: entity
 tags: [nginx, tls, routing]
 sources: [nginx/templates, nginx/conf.d, nginx/snippets, Makefile]
-updated: 2026-07-04
+updated: 2026-07-23
 ---
 
 # Nginx-вход
@@ -34,6 +34,9 @@ alias `gateway`: 8083 → data-registry, 8084 → MCP, 8085 → ai-box
 
 - **Runtime-резолв upstream'ов** (`resolver 127.0.0.11` + переменная в
   `fastcgi_pass`): nginx живёт независимо от контейнеров приложений.
+- **Поток голосовой диктовки** (`api.conf`): ws-локация `…/asr/stream` с
+  `auth_request` в Laravel и `proxy_pass` на внешний ASR (`${ASR_WS_UPSTREAM}`) —
+  см. [[decision:voice-dictation]].
 - Код приложений смонтирован в nginx по тем же путям, что и в php-fpm
   (`SCRIPT_FILENAME`); `fastcgi_read_timeout` задаётся в vhost'е (у DR 300с).
 - **Фронт монтируется РОДИТЕЛЕМ** (`ai-box-front:/var/www/ai-box-front:ro`), не
@@ -47,3 +50,4 @@ alias `gateway`: 8083 → data-registry, 8084 → MCP, 8085 → ai-box
 
 - [[entity:shared-stack]]
 - [[concept:contracts]]
+- [[decision:voice-dictation]]

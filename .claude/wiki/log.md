@@ -23,3 +23,25 @@ deployment-topologies), integrations (app-stacks, gpu-services), index.
 ## [2026-07-05] query | Нужен ли Kubernetes / Ansible? → k8s не нужен (2 сервера, shared-GPU конфликтует с device-plugin, всё работает на compose), Ansible не нужен (bootstrap-скрипт проще для 2 хостов). Решение зафиксировано в decisions/orchestration-no-k8s.md, задача jfb переоформлена на bootstrap-скрипт
 ## [2026-07-05] ingest | Аудиты параллельными агентами. GPU (u83): flash attention + KV q8_0 (защита VRAM на длинных контекстах), nvidia-persistenced, fp16-BERT отклонён (CUDA-overhead доминирует, VRAM рос без ускорения — откат в fp32), num_parallel 2 оставлен. Итог 7944/11264 VRAM, 86.7 ток/с. Prod-конфиги (aki): mariadb buffer_pool через env MARIADB_BUFFER_POOL (doitai 4G), redis maxmemory+volatile-lru (очереди не теряются), nginx gzip+fastcgi_buffers, opcache уже оптимален. Всё параметризовано env для безопасности addons. realpath_cache в ai-box/MCP отложен (репо на develop с билинг-работой)
 ## [2026-07-05] ingest | Тест-зона расширена до полного dev-контура: развёрнуты тест-DR и тест-MCP из develop (клоны git init, БД ai_box_dr_test/ai_box_mcp_test, Redis 4/5 и 14/15, контейнеры ai-box-dr-test-*/ai-box-mcp-test-php, vhost 8183/8184). Тест ai-box переключён на тест DR/MCP (gateway:8183/8184, не общие), MCP→тест ai-box (8185). GitHub деплой develop→test проверен (CI-прогоны DR/MCP success). Также в тест-БД: админ admin@test.doitai.ru, биллинг on, 2 клиента (all-inclusive [all_inclusive+unlimited_tokens] 5000₽ + base 1000₽). Дев-ветки всех app-репо вылиты (realpath DR перенесён master→develop)
+
+## [2026-07-06] ingest | Раскатка develop на test.doitai.ru + серт тест-доменов
+Запушены develop ai-box-back (45) и ai-box-front (13, +VITE-ULID в workflow тест-зоны).
+Интеграция config-ассистента (01KWVSZ…) сеется миграцией, активна. Серт doitai.ru
+расширен SAN'ами тест-доменов (webroot). Детали — [[concept:deployment-topologies]].
+
+## [2026-07-07] ingest | Инцидент: смена UUID GPU на doitai — ollama и pdn легли
+RTX 2080 Ti сменила UUID после драйвера; ollama-gpu0 и ai-box-pdn-cleaner Exited(128)
+(device unknown). Пул роутера пуст → титлер/эмбеддинги/ПДн не работали. Фикс: новый
+UUID в оба .env + пересоздание (с -p и --env-file). Детали — [[integration:gpu-services]].
+
+## [2026-07-23] ingest | Поток голосовой диктовки: nginx-проксирование ASR (auth_request)
+Перенос из брифа ai-box: две локации в шаблоне API-домена — ws-поток
+`…/asr/stream` (`auth_request`→`proxy_pass` на внешний ASR `${ASR_WS_UPSTREAM}`,
+апгрейд, буферизация off, 600с) и внутренний подзапрос `= /internal/asr-authorize`
+в Laravel. Снят `^~` с `location /api` (иначе regex-локация не получит управление).
+`ASR_WS_UPSTREAM` в `nginx.environment` с инертным дефолтом 127.0.0.1:9 (не `:?` —
+чтобы фича не роняла nginx на стендах без голоса). У нас исходников два
+(`templates/` + `templates-test/`), не три: `conf.d/*.conf` — рендер-артефакты.
+`nginx -t` чист на обоих; закрытый гейт → 403 на обеих поверхностях (assistant +
+i/{integration}). Боевая раскатка (reload, nc, реальный ASR-адрес, опц. firewall)
+— по runbook. Детали — [[decision:voice-dictation]]. bead `ai-box-infra-0fq`.

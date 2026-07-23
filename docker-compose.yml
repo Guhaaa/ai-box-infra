@@ -29,6 +29,13 @@ services:
       API_DOMAIN: ${API_DOMAIN:?}
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:?}
       CERT_NAME: ${CERT_NAME:-${ROOT_DOMAIN}}
+      # Адрес внешнего ASR-сервиса (поток голосовой диктовки) для envsubst →
+      # proxy_pass в api-шаблоне. Значение per-stend в .env; не задан → инертный
+      # дефолт (локация рендерится и nginx стартует, но проксировать некуда —
+      # реально активна она лишь после успешного auth_request, т.е. когда голос
+      # включён в самом ai-box). Так добавление голоса не требует новой
+      # ОБЯЗАТЕЛЬНОЙ переменной на стендах без voice.
+      ASR_WS_UPSTREAM: ${ASR_WS_UPSTREAM:-127.0.0.1:9}
     volumes:
       - ./nginx/templates:/etc/nginx/templates:ro
       - ./nginx/conf.d:/etc/nginx/conf.d

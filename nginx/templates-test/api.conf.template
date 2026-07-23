@@ -32,7 +32,9 @@ server {
     resolver 127.0.0.11 valid=10s;
     set $ai_box_test_upstream ai-box-test-php:9000;
 
-    location ^~ /api {
+    # Без `^~`: он отменяет разбор regex-локаций, и ws-локация потока диктовки
+    # (ниже) никогда бы не получила управление.
+    location /api {
         try_files $uri /index.php?$query_string;
     }
 
@@ -42,6 +44,51 @@ server {
 
     location / {
         return 404;
+    }
+
+    # ── Поток голосовой диктовки: вход → auth_request → внешний ASR ──────────
+    # Regex-локация: modelId — ULID (26 символов Crockford base32). Регэксп в
+    # кавычках: без них nginx примет `{26}` за открытие блока и упадёт на старте.
+    location ~ "^/api/(?:assistant|i/[^/]+)/session/[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}/asr/stream$" {
+        auth_request /internal/asr-authorize;
+
+        # В regex-локации proxy_pass не принимает путь — подменяем URI отдельным
+        # rewrite … break (иначе nginx не стартует: «cannot have URI part»).
+        rewrite ^ /api/v1/asr/ws-stream break;
+        # Литерал ASR через envsubst; resolver не нужен — подстановка на старте
+        # контейнера, DNS-резолва в рантайме нет.
+        proxy_pass http://${ASR_WS_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+
+        # Диктовка идёт молча между фразами — таймаут держим выше лимита записи
+        # (asr.max_recording_seconds, дефолт 300с в ai-box) с запасом.
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+        # Буферизация ломает интерактивность потока.
+        proxy_buffering off;
+    }
+
+    # Подзапрос авторизации потока (internal — снаружи недоступен): идёт в тот же
+    # Laravel тест-копии, что и остальной API.
+    location = /internal/asr-authorize {
+        internal;
+        include snippets/php-fastcgi.conf;
+        # snippets/php-fastcgi.conf ставит SCRIPT_FILENAME=$document_root$fastcgi_script_name,
+        # но в auth_request $fastcgi_script_name пуст — переопределяем SCRIPT_FILENAME
+        # и SCRIPT_NAME явно (строки ниже include перебивают его). Осознанно, не дубль.
+        fastcgi_pass $ai_box_test_upstream;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_param REQUEST_METHOD GET;
+        fastcgi_param REQUEST_URI /api/internal/asr/authorize;
+        fastcgi_param DOCUMENT_URI /api/internal/asr/authorize;
+        fastcgi_param QUERY_STRING "";
+        fastcgi_param CONTENT_LENGTH "";
+        # Подзапрос не наследует query-строку — исходный URI передаём заголовком.
+        fastcgi_param HTTP_X_ORIGINAL_URI $request_uri;
     }
 
     location ~ \.php$ {
