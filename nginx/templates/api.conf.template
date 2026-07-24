@@ -32,6 +32,16 @@ server {
     resolver 127.0.0.11 valid=10s;
     set $ai_box_upstream ai-box-php:9000;
 
+    # Межсервисная поверхность ai-box (POST /api/internal/llm/chat и т. п.) наружу
+    # не публикуется: её вход — внутренний vhost 8085 (internal-ai-box.conf), доступный
+    # только из сети ecosystem. Здесь второй слой к фейл-клоузд-гейту приложения
+    # (EnsureInternalNetwork): без него любой снаружи списывал бы токены на чужой
+    # client_id. `^~` безопасен — ws-локация диктовки живёт под /api/…/asr/stream
+    # и этому префиксу не принадлежит, а auth_request идёт мимо разбора локаций.
+    location ^~ /api/internal/ {
+        return 404;
+    }
+
     # Без `^~`: он отменяет разбор regex-локаций, и ws-локация потока диктовки
     # (ниже) никогда бы не получила управление.
     location /api {

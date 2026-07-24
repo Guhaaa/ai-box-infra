@@ -32,6 +32,13 @@ server {
     resolver 127.0.0.11 valid=10s;
     set $ai_box_test_upstream ai-box-test-php:9000;
 
+    # Межсервисная поверхность ai-box наружу не публикуется: её вход — внутренний
+    # vhost тест-зоны 8185 (test-internal.conf), доступный только из сети ecosystem.
+    # Второй слой к фейл-клоузд-гейту приложения (EnsureInternalNetwork).
+    location ^~ /api/internal/ {
+        return 404;
+    }
+
     # Без `^~`: он отменяет разбор regex-локаций, и ws-локация потока диктовки
     # (ниже) никогда бы не получила управление.
     location /api {
