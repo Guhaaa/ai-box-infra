@@ -55,3 +55,12 @@ asr.enabled=false). Дев-контур test.doitai.ru: make testzone-enable
 брифа). Закрытый гейт → 403 на api.test.doitai.ru (assistant + i/{integration}).
 Осталось: открытый гейт (asr.enabled=true в тест-ai-box — app-сторона) и amulex
 (отдельный деплой по runbook). Детали — [[decision:voice-dictation]]. bead 0fq.
+
+## [2026-07-24] ingest | make nginx-reload не применял правки шаблонов
+Выкатка deny-блока /api/internal/ для ai-box (bead qhdg) вскрыла: envsubst образа
+nginx отрабатывает только в entrypoint, а CI зовёт `nginx -s reload` — шаблон
+доезжает, деплой зелёный, конфиг старый. Та же беда со вторым слоем: тестовые
+vhost'ы рендерятся из копий templates-test/. Починено в Makefile: nginx-render
+(рендер внутри работающего контейнера) + testzone-sync (копии, no-op без тест-зоны),
+nginx-reload = рендер → nginx -t → reload. Детали и trade-off'ы —
+[[decision:nginx-template-rendering]]. Биды 99co, qhdg.

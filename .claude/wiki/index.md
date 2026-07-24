@@ -24,4 +24,5 @@
 
 - [[decision:orchestration-no-k8s]] — оркестрация: docker-compose, не k8s; bootstrap скриптом, не Ansible.
 - [[decision:voice-dictation]] — nginx-проксирование ASR ws-потока голосовой диктовки (auth_request + внешний ASR).
+- [[decision:nginx-template-rendering]] — рендер nginx-шаблонов на деплое (envsubst только в entrypoint → тихий no-op).
 - (прочая дизайн-история до вики — в `docs/superpowers/specs/` и runbook'ах)
