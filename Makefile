@@ -11,8 +11,8 @@ export
 DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN)
 CERT_EMAIL ?= admin@amulex.ru
 
-.PHONY: up down restart ps logs build-base build-base-dev testzone-enable mariadb-cli redis-cli \
-        certs-init certs-renew certs-selfsigned nginx-reload nginx-test db-import
+.PHONY: up down restart ps logs build-base build-base-dev testzone-enable testzone-sync mariadb-cli redis-cli \
+        certs-init certs-renew certs-selfsigned nginx-reload nginx-render nginx-test db-import
 
 up:
 	$(COMPOSE) up -d
@@ -53,7 +53,32 @@ redis-cli:
 nginx-test:
 	$(COMPOSE) exec nginx nginx -t
 
-nginx-reload: nginx-test
+# Тест-шаблоны лежат в templates-test/, а рендерятся из templates/test-*.template —
+# это КОПИИ, которые делает testzone-enable. Без пересинхронизации правка
+# templates-test/ не доезжает до nginx. На хостах без тест-зоны — no-op.
+testzone-sync:
+	@if [ "$$(readlink docker-compose.override.yml 2>/dev/null)" = "docker-compose.testzone.yml" ]; then \
+		cp nginx/templates-test/front.conf.template nginx/templates/test-front.conf.template; \
+		cp nginx/templates-test/api.conf.template nginx/templates/test-api.conf.template; \
+		cp nginx/templates-test/admin.conf.template nginx/templates/test-admin.conf.template; \
+		cp nginx/templates-test/internal-test.conf.template nginx/templates/test-internal.conf.template; \
+		echo "тест-зона активна: шаблоны пересинхронизированы"; \
+	else \
+		echo "тест-зона не активирована — пересинхронизация не нужна"; \
+	fi
+
+# Перерендер templates → conf.d в РАБОТАЮЩЕМ контейнере. Штатный envsubst образа
+# nginx отрабатывает только в entrypoint при старте, поэтому без этого шага правка
+# шаблона доезжает до хоста, деплой отчитывается успехом, а nginx продолжает
+# работать по старому конфигу — молча (ai-box-back-99co).
+nginx-render: testzone-sync
+	$(COMPOSE) exec nginx /docker-entrypoint.d/20-envsubst-on-templates.sh
+
+# Рендер → проверка → перечитка. Порядок важен: nginx -t обязан проверять уже
+# отрендеренный конфиг, иначе reload подхватит непроверенное.
+nginx-reload:
+	$(MAKE) nginx-render
+	$(MAKE) nginx-test
 	$(COMPOSE) exec nginx nginx -s reload
 
 # Первичное получение сертификата на пустом сервере — ДО первого `make up`
@@ -83,9 +108,6 @@ certs-selfsigned:
 # Активация тест-зоны на хосте: тест-шаблоны в общий каталог templates
 # + постоянный override (подробности — docker-compose.testzone.yml).
 testzone-enable:
-	cp nginx/templates-test/front.conf.template nginx/templates/test-front.conf.template
-	cp nginx/templates-test/api.conf.template nginx/templates/test-api.conf.template
-	cp nginx/templates-test/admin.conf.template nginx/templates/test-admin.conf.template
-	cp nginx/templates-test/internal-test.conf.template nginx/templates/test-internal.conf.template
 	ln -sf docker-compose.testzone.yml docker-compose.override.yml
+	$(MAKE) testzone-sync
 	$(COMPOSE) up -d --force-recreate nginx
