@@ -24,3 +24,7 @@ services:
   qdrant:
     # 6333/6334 на этой машине заняты; диагностика — docker exec
     ports: !override []
+
+  neo4j:
+    # Диагностика — docker exec; порты на dev-машине не публикуем.
+    ports: !override []
