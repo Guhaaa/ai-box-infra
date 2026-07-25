@@ -139,10 +139,40 @@ services:
     networks:
       - ecosystem
 
+  neo4j:
+    # Граф-хранилище knowledge реестра. Стоковый образ, БЕЗ NEO4J_PLUGINS:
+    # плагин GDS ставим сами в neo4j/plugins (make neo4j-plugins, пин+sha256).
+    # Версия Neo4j↔GDS пинится согласованно (5.26.x ↔ GDS 2.13.x).
+    image: neo4j:${NEO4J_VERSION:-5.26.28-community}
+    container_name: infra_neo4j
+    restart: unless-stopped
+    # Наружу не светим; loopback — ручная диагностика (Bolt + Neo4j Browser).
+    # Приложения ходят по сети ecosystem на neo4j:7687 напрямую.
+    ports:
+      - "127.0.0.1:7687:7687"   # Bolt (клиенты, cypher-shell)
+      - "127.0.0.1:7474:7474"   # HTTP Neo4j Browser (диагностика)
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD обязателен}
+      # Слушать интерфейс контейнера, чтобы app-контейнеры на ecosystem достучались
+      # (наружу закрыто loopback-публикацией, как mariadb/qdrant).
+      NEO4J_server_default__listen__address: 0.0.0.0
+      # GDS требует unrestricted, иначе процедуры gds.* не грузятся.
+      NEO4J_dbms_security_procedures_unrestricted: gds.*
+      # Память под RAM хоста (.env; дефолты малы и безопасны — как MARIADB_BUFFER_POOL).
+      NEO4J_server_memory_heap_initial__size: ${NEO4J_HEAP:-512m}
+      NEO4J_server_memory_heap_max__size: ${NEO4J_HEAP:-512m}
+      NEO4J_server_memory_pagecache_size: ${NEO4J_PAGECACHE:-512m}
+    volumes:
+      - neo4j_data:/data
+      - ./neo4j/plugins:/plugins:ro   # jar кладёт make neo4j-plugins; ro — Neo4j только читает
+    networks:
+      - ecosystem
+
 volumes:
   mariadb_data:
   redis_data:
   qdrant_data:
+  neo4j_data:
   letsencrypt:
   certbot_webroot:
 
