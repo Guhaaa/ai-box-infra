@@ -12,3 +12,6 @@ nginx/conf.d/admin.conf
 
 # Тест-шаблоны, доставленные testzone-enable
 nginx/templates/test-*.conf.template
+
+# Плагин Neo4j GDS — ставится make neo4j-plugins (пин+sha256), не коммитим
+neo4j/plugins/*.jar

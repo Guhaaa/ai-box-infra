@@ -11,8 +11,18 @@ export
 DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN)
 CERT_EMAIL ?= admin@amulex.ru
 
+# Neo4j: плагин GDS ставим сами (пин версии + sha256), НЕ через NEO4J_PLUGINS —
+# так нет egress-зависимости на старте контейнера. Версию Neo4j↔GDS пинить
+# по матрице совместимости GDS (2.13.x — единственная линия под Neo4j 5.26.x).
+NEO4J_GDS_VERSION ?= 2.13.4
+NEO4J_GDS_SHA256  ?= 10e072f73992224f1159f246c9d6a89da5f3b3434aeffa5be42647edda13a8d8
+NEO4J_GDS_URL     ?= https://github.com/neo4j/graph-data-science/releases/download/$(NEO4J_GDS_VERSION)/neo4j-graph-data-science-$(NEO4J_GDS_VERSION).jar
+NEO4J_PLUGINS_DIR := neo4j/plugins
+NEO4J_GDS_JAR     := $(NEO4J_PLUGINS_DIR)/neo4j-graph-data-science-$(NEO4J_GDS_VERSION).jar
+
 .PHONY: up down restart ps logs build-base build-base-dev testzone-enable testzone-sync mariadb-cli redis-cli \
-        certs-init certs-renew certs-selfsigned nginx-reload nginx-render nginx-test db-import
+        certs-init certs-renew certs-selfsigned nginx-reload nginx-render nginx-test db-import \
+        neo4j-plugins
 
 up:
 	$(COMPOSE) up -d
@@ -111,3 +121,20 @@ testzone-enable:
 	ln -sf docker-compose.testzone.yml docker-compose.override.yml
 	$(MAKE) testzone-sync
 	$(COMPOSE) up -d --force-recreate nginx
+
+# Идемпотентная установка плагина GDS в neo4j/plugins (bind-mount :/plugins:ro).
+# Валидный jar на месте → skip. Иначе: удалить прочие версии, скачать во
+# временный файл, ЖЁСТКО сверить sha256 (mismatch → abort), атомарно перенести.
+# Предшаг перед `up` (host-каталог должен быть пополнён до старта контейнера).
+neo4j-plugins:
+	@mkdir -p $(NEO4J_PLUGINS_DIR)
+	@if [ -f "$(NEO4J_GDS_JAR)" ] && echo "$(NEO4J_GDS_SHA256)  $(NEO4J_GDS_JAR)" | sha256sum -c - >/dev/null 2>&1; then \
+		echo "GDS $(NEO4J_GDS_VERSION): jar на месте, sha256 ок — skip"; \
+	else \
+		echo "GDS $(NEO4J_GDS_VERSION): качаю $(NEO4J_GDS_URL)"; \
+		rm -f $(NEO4J_PLUGINS_DIR)/neo4j-graph-data-science-*.jar; \
+		curl -fsSL -o "$(NEO4J_GDS_JAR).tmp" "$(NEO4J_GDS_URL)"; \
+		echo "$(NEO4J_GDS_SHA256)  $(NEO4J_GDS_JAR).tmp" | sha256sum -c - || { rm -f "$(NEO4J_GDS_JAR).tmp"; echo "GDS sha256 MISMATCH — abort"; exit 1; }; \
+		mv "$(NEO4J_GDS_JAR).tmp" "$(NEO4J_GDS_JAR)"; chmod 644 "$(NEO4J_GDS_JAR)"; \
+		echo "GDS $(NEO4J_GDS_VERSION): установлен"; \
+	fi
