@@ -103,7 +103,11 @@ server {
 
     location ~ \.php$ {
         include snippets/php-fastcgi.conf;
-        fastcgi_read_timeout 120;
+        # Потолок длительности одного запроса api-vhost. Согласован с TTL лока шага
+        # (config/chat.php: step_lock_ttl) и с proxy_read_timeout выше: шаг с
+        # несколькими вложениями и длинной tool-цепочкой не должен обрываться 504 —
+        # обрыв порождал ретраи фронта и потерю оплаченной работы (инцидент 24.07.2026).
+        fastcgi_read_timeout 600;
         fastcgi_pass $ai_box_upstream;
     }
 
