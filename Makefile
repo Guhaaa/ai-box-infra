@@ -22,9 +22,11 @@ NEO4J_GDS_JAR     := $(NEO4J_PLUGINS_DIR)/neo4j-graph-data-science-$(NEO4J_GDS_V
 
 .PHONY: up down restart ps logs build-base build-base-dev testzone-enable testzone-sync mariadb-cli redis-cli \
         certs-init certs-renew certs-selfsigned nginx-reload nginx-render nginx-test db-import \
-        neo4j-plugins
+        neo4j-plugins neo4j-cli neo4j-smoke neo4j-dump neo4j-restore
 
-up:
+# neo4j-plugins — предшаг: host-каталог neo4j/plugins должен быть пополнён
+# до старта контейнера neo4j (иначе GDS не загрузится, поймает neo4j-smoke).
+up: neo4j-plugins
 	$(COMPOSE) up -d
 
 down:
@@ -138,3 +140,25 @@ neo4j-plugins:
 		mv "$(NEO4J_GDS_JAR).tmp" "$(NEO4J_GDS_JAR)"; chmod 644 "$(NEO4J_GDS_JAR)"; \
 		echo "GDS $(NEO4J_GDS_VERSION): установлен"; \
 	fi
+
+neo4j-cli:
+	$(COMPOSE) exec neo4j cypher-shell -u neo4j -p "$$NEO4J_PASSWORD"
+
+# Проверка живого GDS: ОБЯЗАН вернуть $(NEO4J_GDS_VERSION). Ловит рассинхрон
+# Neo4j↔GDS (несовместимый плагин Neo4j не загрузит → gds.version() не найдётся).
+neo4j-smoke:
+	$(COMPOSE) exec neo4j cypher-shell -u neo4j -p "$$NEO4J_PASSWORD" "RETURN gds.version() AS gds"
+
+# Ручной офлайн-дамп community: стоп сервиса → дамп одноразовым контейнером на
+# том же томе → старт. Дамп в ./backups/neo4j.dump. (Авто-бэкап — ai-box-infra-4tb.)
+neo4j-dump:
+	@mkdir -p backups
+	$(COMPOSE) stop neo4j
+	$(COMPOSE) run --rm -v $(PWD)/backups:/backups neo4j neo4j-admin database dump neo4j --to-path=/backups --overwrite-destination=true
+	$(COMPOSE) start neo4j
+
+# Восстановление из ./backups/neo4j.dump (ПЕРЕЗАПИШЕТ БД). Сервис остановлен на время.
+neo4j-restore:
+	$(COMPOSE) stop neo4j
+	$(COMPOSE) run --rm -v $(PWD)/backups:/backups neo4j neo4j-admin database load neo4j --from-path=/backups --overwrite-destination=true
+	$(COMPOSE) start neo4j
