@@ -25,4 +25,5 @@
 - [[decision:orchestration-no-k8s]] — оркестрация: docker-compose, не k8s; bootstrap скриптом, не Ansible.
 - [[decision:voice-dictation]] — nginx-проксирование ASR ws-потока голосовой диктовки (auth_request + внешний ASR).
 - [[decision:nginx-template-rendering]] — рендер nginx-шаблонов на деплое (envsubst только в entrypoint → тихий no-op).
+- [[decision:neo4j-graph-store]] — Neo4j + GDS в общем стеке для knowledge-графа реестра (GDS идемпотентным fetch'ем, пин 5.26.28↔2.13.4).
 - (прочая дизайн-история до вики — в `docs/superpowers/specs/` и runbook'ах)

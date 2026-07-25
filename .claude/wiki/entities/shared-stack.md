@@ -3,7 +3,7 @@ title: Shared-стек — сервисы и overlay-файлы
 type: entity
 tags: [docker, compose, infrastructure]
 sources: [docker-compose.yml, docker-compose.transition.yml, docker-compose.local.yml, Makefile, mariadb/initdb/01-apps.sh]
-updated: 2026-07-04
+updated: 2026-07-25
 ---
 
 # Shared-стек
@@ -16,6 +16,7 @@ updated: 2026-07-04
 | mariadb | mariadb:11.8 (LTS) | одна на всех; базы/юзеры создаёт `mariadb/initdb/01-apps.sh` при первом старте volume; пароли из `.env` |
 | redis | redis:7.4-alpine | requirepass обязателен (строка `null` недопустима — боевой урок); DB-индексы — [[concept:contracts]] |
 | qdrant | qdrant/qdrant:${QDRANT_VERSION} | версия цели ≥ версии источника данных; пин по прод-источнику |
+| neo4j | neo4j:5.26.28-community | граф-хранилище knowledge реестра; GDS 2.13.4 ставит `make neo4j-plugins` (пин+sha256, не NEO4J_PLUGINS); loopback 7687/7474; см. [[decision:neo4j-graph-store]] |
 | browserless | browserless/chrome | TOKEN обязателен |
 | certbot | certbot/certbot | profile `certs`, одноразовые запуски из Makefile |
 
@@ -49,7 +50,8 @@ updated: 2026-07-04
   128M); сброс при деплое покрыт `restart php` в eco-deploy.
 
 Env под RAM хоста (задать в `.env` каждого сервера): `MARIADB_BUFFER_POOL`
-(~50-70% RAM под БД), `REDIS_MAXMEMORY` (граница против OOM).
+(~50-70% RAM под БД), `REDIS_MAXMEMORY` (граница против OOM), `NEO4J_HEAP` и
+`NEO4J_PAGECACHE` (heap+pagecache Neo4j, дефолт по 512m).
 
 ## Makefile
 

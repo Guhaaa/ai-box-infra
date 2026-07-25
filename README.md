@@ -16,6 +16,7 @@ compose-стеками и подключаются к общей docker-сети
 | mariadb | mariadb:11.8 (LTS) | сеть `ecosystem`; 127.0.0.1:3306 хоста для администрирования |
 | redis | redis:7.4-alpine | только сеть `ecosystem` |
 | qdrant | qdrant/qdrant:v1.12.4 | сеть `ecosystem`; 127.0.0.1:6333 для диагностики |
+| neo4j | neo4j:5.26.28-community | сеть `ecosystem`; 127.0.0.1:7687 (Bolt) / 7474 (Browser) для диагностики; GDS 2.13.4 через `make neo4j-plugins` |
 | browserless | browserless/chrome | только сеть `ecosystem` |
 | certbot | certbot/certbot | одноразовые запуски из Makefile (profile `certs`) |
 
@@ -50,6 +51,7 @@ Bearer-токеном. Требует GPU: на хосте нужен NVIDIA Con
 DB_HOST=mariadb
 REDIS_HOST=redis
 QDRANT_URL=http://qdrant:6333          # только data-registry
+NEO4J_BOLT_URL=bolt://neo4j:7687       # только data-registry (+ NEO4J_USER=neo4j, NEO4J_PASSWORD=<секрет стека>)
 BROWSERLESS_WS=ws://browserless:3000   # ai-box (demo)
 DATA_REGISTRY_URL=http://gateway:8083  # потребители DR
 MCP_URL=http://gateway:8084            # потребители MCP (в ai-box: AIBOX_MCP_URL)

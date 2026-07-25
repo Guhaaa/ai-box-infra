@@ -64,3 +64,11 @@ vhost'ы рендерятся из копий templates-test/. Починено 
 (рендер внутри работающего контейнера) + testzone-sync (копии, no-op без тест-зоны),
 nginx-reload = рендер → nginx -t → reload. Детали и trade-off'ы —
 [[decision:nginx-template-rendering]]. Биды 99co, qhdg.
+
+## [2026-07-25] ingest | Neo4j + GDS в общий стек (decision + shared-stack, задача ai-box-infra-f15 / источник ai-box-dr-drf)
+
+Соседняя команда реестра (`ai-box-data-registry`) завела у себя `ai-box-dr-drf`
+на нас: поднять Neo4j Community + GDS в общей инфре для knowledge-графа. Решение —
+сервис `neo4j` (5.26.28-community) на `ecosystem` рядом с qdrant, GDS 2.13.4
+ставим сами идемпотентным `make neo4j-plugins` (пин+sha256, не NEO4J_PLUGINS —
+снят egress со старта контейнера). Trade-off'ы и пины — [[decision:neo4j-graph-store]].
