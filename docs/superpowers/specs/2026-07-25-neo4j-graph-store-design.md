@@ -2,7 +2,7 @@
 
 Дата: 2026-07-25
 Статус: утверждён к планированию
-Задача (наш трекер): `ai-box-infra-<TBD>` (завести при старте работы)
+Задача (наш трекер): `ai-box-infra-f15`
 Задача-источник (трекер реестра): `ai-box-dr-drf`
 Спека-источник: `ai-box-data-registry:docs/superpowers/specs/2026-07-25-knowledge-graph-storage-design.md` §9
 
@@ -202,7 +202,7 @@ Makefile уже читает `.env` (домены, пароли) — `NEO4J_PASS
   ручного ведения версии+sha256 и предшага fetch перед `up`); пин 5.26.28↔2.13.4
   и обход бага 5.26.0; паритет бэкапов (ручной dump сейчас, крон — в
   `ai-box-infra-4tb`); рассмотренные альтернативы (§ ниже). Секции `## Связи`,
-  `## Связанные Beads` (`[[bead:ai-box-infra-<TBD>]]`).
+  `## Связанные Beads` (`[[bead:ai-box-infra-f15]]`).
 - **`.claude/wiki/index.md`** — добавить строку decision-страницы.
 - **`.claude/wiki/log.md`** — запись `ingest`.
 - Мелочь для соседей: `wiki_refs: ["integrations/llm-proxy.md"]` в `ai-box-dr-drf`
