@@ -1,4 +1,10 @@
+# Плоский .env выпилен (env-per-stend, decisions/env-per-stend.md).
+# Секреты стендов — env/*/secrets.env (на серверах, не в git). Транзитивно
+# .env всё ещё игнорируем (мог остаться на старых серверах).
 .env
+env/*/secrets.env
+!env/example/secrets.env
+
 # Рендер nginx-шаблонов (envsubst из nginx/templates/ при старте контейнера)
 nginx/conf.d/root.conf
 nginx/conf.d/front.conf
