@@ -72,3 +72,14 @@ nginx-reload = рендер → nginx -t → reload. Детали и trade-off'�
 сервис `neo4j` (5.26.28-community) на `ecosystem` рядом с qdrant, GDS 2.13.4
 ставим сами идемпотентным `make neo4j-plugins` (пин+sha256, не NEO4J_PLUGINS —
 снят egress со старта контейнера). Trade-off'ы и пины — [[decision:neo4j-graph-store]].
+
+## [2026-07-27] ingest | env-per-stend: STAND-слои env/<stend>, выпил плоского .env, eco-deploy hook
+
+Эталон на infra (bead ai-box-infra-11l, Фаза 1 на ветке feat/env-per-stend, не
+пушено). Несекретный конфиг стендов — в git (`env/{local,doitai,amulex}/config.env`
++ `env/example/*`), секреты — некоммитный `env/<stend>/secrets.env`. Стенд — `STAND`
+(дефолт local), Makefile слоями подключает config→testzone→secrets и мержит через
+`docker compose --env-file`. Плоский `.env` выпилен (проверено `make config` без
+него). Пост-деплой — `deploy/post-deploy.sh` + цель `eco-deploy`, workflow doitai
+переведён на `STAND=doitai make eco-deploy`. Боевая миграция серверов + пуш — Фаза 2
+(runbook + разрешение). Trade-off'ы — [[decision:env-per-stend]].

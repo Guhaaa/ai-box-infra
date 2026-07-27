@@ -59,8 +59,17 @@ updated: 2026-07-04
 - образы с Docker Hub могут не тянуться — сетевые проверки через
   `docker exec` в контейнер приложения (curl в базовом образе есть).
 
+## Выбор стенда — env-per-stend
+
+Стенд копии infra выбирается переменной `STAND` (local | doitai | amulex);
+несекретный конфиг стенда версионируется в `env/<stend>/config.env`, секреты — в
+некоммитном `env/<stend>/secrets.env` на сервере. Makefile слоями подключает
+config → (условно) testzone → secrets и мержит через `docker compose --env-file`.
+Подробности и trade-off'ы — [[decision:env-per-stend]].
+
 ## Связи
 
 - [[entity:shared-stack]]
 - [[concept:contracts]]
 - [[integration:gpu-services]]
+- [[decision:env-per-stend]]
