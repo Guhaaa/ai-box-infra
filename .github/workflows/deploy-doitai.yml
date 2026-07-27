@@ -24,4 +24,4 @@ jobs:
 
       - name: Деплой инфра-стека
         run: |
-          ssh guha@doitai.ru 'cd /var/www/ai-box-infra && git pull origin master && make build-base && make up && make nginx-reload'
+          ssh guha@doitai.ru 'cd /var/www/ai-box-infra && git pull origin master && export STAND=doitai && make eco-deploy'
