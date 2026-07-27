@@ -45,6 +45,12 @@ NEO4J_GDS_JAR     := $(NEO4J_PLUGINS_DIR)/neo4j-graph-data-science-$(NEO4J_GDS_V
 up: neo4j-plugins
 	$(COMPOSE) up -d
 
+# Экосистемный деплой: собрать базовый образ, поднять стек, прогнать идемпотентный
+# пост-деплой hook. STAND экспортируется выше — post-deploy.sh его видит.
+# Заменяет ручную связку build-base + up + nginx-reload в CI.
+eco-deploy: build-base up
+	./deploy/post-deploy.sh
+
 down:
 	$(COMPOSE) down
 
