@@ -1,11 +1,27 @@
 # Управление shared-стеком экосистемы AiBox.
 # Все команды выполняются на сервере из корня этого репозитория.
 
-COMPOSE = docker compose
+# Стенд этой копии infra: local (дефолт) | doitai | amulex. Env-переменная STAND
+# перекрывает дефолт (?=). Несекретный конфиг + секреты — из env/$(STAND)/.
+# Плоский .env выпилен — см. .claude/wiki/decisions/env-per-stend.md.
+STAND    ?= local
+ENVDIR   := env/$(STAND)
+# testzone.env — условный overlay-слой: подключается, только если есть в каталоге
+# стенда (=doitai). Тот же признак, что и активный testzone-override.
+TESTZONE := $(wildcard $(ENVDIR)/testzone.env)
 
-# Домены и пароли — из .env этой копии
--include .env
+# Значения — и для make-целей (db-import/mariadb-cli/certs-*), и для интерполяции
+# ${VAR} в compose. Порядок: config → (testzone) → secrets (секреты поверх).
+-include $(ENVDIR)/config.env
+-include $(TESTZONE)
+-include $(ENVDIR)/secrets.env
 export
+
+# docker compose --env-file можно указать несколько раз: файлы мержатся,
+# последний перекрывает. testzone-слой подключается только когда файл есть.
+COMPOSE = docker compose --env-file $(ENVDIR)/config.env \
+          $(if $(TESTZONE),--env-file $(TESTZONE),) \
+          --env-file $(ENVDIR)/secrets.env
 
 # Домены одного SAN-сертификата (первый задаёт имя lineage = CERT_NAME)
 DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN)
@@ -22,7 +38,7 @@ NEO4J_GDS_JAR     := $(NEO4J_PLUGINS_DIR)/neo4j-graph-data-science-$(NEO4J_GDS_V
 
 .PHONY: up down restart ps logs build-base build-base-dev testzone-enable testzone-sync mariadb-cli redis-cli \
         certs-init certs-renew certs-selfsigned nginx-reload nginx-render nginx-test db-import \
-        neo4j-plugins neo4j-cli neo4j-smoke neo4j-dump neo4j-restore
+        neo4j-plugins neo4j-cli neo4j-smoke neo4j-dump neo4j-restore config eco-deploy
 
 # neo4j-plugins — предшаг: host-каталог neo4j/plugins должен быть пополнён
 # до старта контейнера neo4j (иначе GDS не загрузится, поймает neo4j-smoke).
@@ -37,6 +53,11 @@ restart:
 
 ps:
 	$(COMPOSE) ps
+
+# Валидация интерполяции env текущего стенда: рендерит и молча проверяет.
+# Ненулевой код = незаполненная/потерянная переменная. Использует STAND.
+config:
+	$(COMPOSE) config --quiet
 
 logs:
 	$(COMPOSE) logs -f --tail=200
