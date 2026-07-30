@@ -3,7 +3,7 @@ title: env по стендам + пост-деплой hook
 type: decision
 tags: [deployment, env, infrastructure, make]
 sources: [docs/superpowers/specs/2026-07-08-env-per-stend-design.md, Makefile, deploy/post-deploy.sh, env/]
-updated: 2026-07-27
+updated: 2026-07-30
 ---
 
 # env по стендам (эталон на infra)
@@ -51,6 +51,25 @@ updated: 2026-07-27
   остаётся ручным первичным шагом.
 - Секреты в `secrets.env` не должны содержать `#`/`$` (ломают make `-include`) —
   генерить `openssl rand -hex 24`.
+
+## Статус миграции
+
+Фаза 1 (артефакты + стенд `local`) готова на ветке `feat/env-per-stend`,
+в master **не пушена**; `STAND=local make config` зелёный без плоского `.env`.
+Боевая миграция — `docs/runbooks/env-per-stend-migration.md`: гейт перед мержем
+(сверка ключей, `secrets.env` на сервере, `make config` во временном worktree),
+затем doitai (мерж = автодеплой), затем amulex своим окном.
+
+Два пробела, известных на 2026-07-30:
+
+- **маркера стенда на сервере нет** — спека предполагала файл `.stand`,
+  реализация ограничилась `STAND ?= local`. Вызов `make` без `STAND` на боевом
+  хосте берёт конфиг dev-машины; защита пока дисциплинарная (раннбук,
+  инвентарь cron/Jenkins). Кандидат на фикс —
+  `STAND ?= $(shell cat .stand 2>/dev/null || echo local)`.
+- **`.env.example` ещё существует** рядом с `env/example/` (мёртвый дубль);
+  выпил сцеплен с мержем ветки `feat/polygon-runner-ingress`, которая этот файл
+  правит и добавляет обязательный `TEST_MCP_DOMAIN` в testzone-compose.
 
 ## Скоуп
 

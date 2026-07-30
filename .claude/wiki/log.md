@@ -83,3 +83,16 @@ nginx-reload = рендер → nginx -t → reload. Детали и trade-off'�
 него). Пост-деплой — `deploy/post-deploy.sh` + цель `eco-deploy`, workflow doitai
 переведён на `STAND=doitai make eco-deploy`. Боевая миграция серверов + пуш — Фаза 2
 (runbook + разрешение). Trade-off'ы — [[decision:env-per-stend]].
+
+## [2026-07-30] ingest | Раннбук боевой миграции env-per-stend (Фаза 2)
+
+`docs/runbooks/env-per-stend-migration.md` (bead ai-box-infra-11l): гейт перед
+мержем в master (мерж = автодеплой doitai), механический diff ключей живого
+`.env` ↔ слои `env/<stend>/*`, `secrets.env` на сервере (7 ключей, chmod 600),
+прогон `STAND=doitai make config` во временном worktree (деплойный клон ветку не
+переключает — workflow тянет master в текущую), инвентарь вызовов `make` из
+cron/Jenkins (без `STAND` берётся стенд `local`), постпроверки и выпил плоского
+`.env` после контрольного срока. Названы тихие ключи-с-дефолтом (`QDRANT_VERSION`
+— даунгрейд storage, `ASR_WS_UPSTREAM` — заглушка 127.0.0.1:9, `ECOSYSTEM_SUBNET`)
+и порядок мержа с `feat/polygon-runner-ingress` (конфликт Makefile/.env.example,
+обязательный `TEST_MCP_DOMAIN`). Пробелы — [[decision:env-per-stend]].
