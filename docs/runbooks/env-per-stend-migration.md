@@ -1,14 +1,17 @@
 # Runbook: миграция боевых стендов на env-per-stend (Фаза 2)
 
-> **Статус: НЕ ВЫПОЛНЕН.** Фаза 1 (сборка артефактов + миграция локального
-> стенда) готова на ветке `feat/env-per-stend` и в master **не запушена**.
-> Эта фаза — операция на боевых серверах, идёт только с явного «go» человека.
+> **Статус: НЕ ВЫПОЛНЕН.** Всё, что делается в репозитории, готово на ветке
+> `feat/env-per-stend`; в master **не запушено**. Остались операции на боевых
+> серверах — только с явного «go» человека.
 >
-> Задача — bead `ai-box-infra-11l`. Решение и trade-off'ы —
-> `.claude/wiki/decisions/env-per-stend.md`. Спека —
+> Ветка `feat/polygon-runner-ingress` **влита сюда** (merge `da54f89`): внешний
+> вхост `mcp.test.doitai.ru` уезжает в master тем же мержем, поэтому гейт ниже
+> один и общий на две задачи — beads `ai-box-infra-11l` и `ai-box-infra-3q9`.
+>
+> Решение и trade-off'ы — `.claude/wiki/decisions/env-per-stend.md`, внешний
+> контур — `.claude/wiki/entities/nginx-edge.md`. Спека —
 > `docs/superpowers/specs/2026-07-08-env-per-stend-design.md`, план Фазы 1 —
-> `docs/superpowers/plans/2026-07-27-env-per-stend-infra.md` (§ФАЗА 2 — конспект
-> этого раннбука).
+> `docs/superpowers/plans/2026-07-27-env-per-stend-infra.md`.
 
 ## Что меняется на серверах
 
@@ -41,8 +44,8 @@ env/<stend>/secrets.env    секреты — НА СЕРВЕРЕ, chmod 600, gi
    `DB_ROOT_PASSWORD`, `AI_BOX_DB_PASSWORD`, `AI_BOX_DR_DB_PASSWORD`,
    `AI_BOX_MCP_DB_PASSWORD`, `REDIS_PASSWORD`, `BROWSERLESS_TOKEN`,
    `NEO4J_PASSWORD` + при активной тест-зоне `TEST_FRONT_DOMAIN`,
-   `TEST_API_DOMAIN`, `TEST_ADMIN_DOMAIN` (+ `TEST_MCP_DOMAIN` после мержа
-   ветки полигона, см. §«Порядок мержа»).
+   `TEST_API_DOMAIN`, `TEST_ADMIN_DOMAIN`, `TEST_MCP_DOMAIN` (последний пришёл
+   с веткой полигона; в репозитории уже лежит в `env/doitai/testzone.env`).
 3. **Ключ с дефолтом, потерянный при переносе, ломает тихо** — деплой зелёный,
    поведение другое. Опасные:
    - `QDRANT_VERSION` (дефолт `v1.12.4`): на doitai живёт новее — потеря ключа
@@ -59,6 +62,12 @@ env/<stend>/secrets.env    секреты — НА СЕРВЕРЕ, chmod 600, gi
    `env/local/config.env` (домены dev-машины) — отрендерит чужие vhost'ы и/или
    запросит сертификат на чужой lineage. Маркер закрывает это на хосте раз и
    навсегда (Шаг 5), но положить его — обязательный шаг, а не формальность.
+5. **Новый публичный домен `mcp.test.doitai.ru` приезжает тем же мержем**
+   (внёс merge ветки полигона). Он не в SAN живого сертификата, а
+   `make certs-renew` SAN **не расширяет** — `certbot renew` перевыпускает старый
+   список. Пока не сделан `make certs-expand`, vhost отдаёт серт с чужим именем
+   (nginx при этом стартует и `nginx -t` проходит — тихая поломка только у
+   клиента). Порядок: A-запись → мерж/деплой → `certs-expand` → проверки.
 
 ---
 
@@ -66,15 +75,17 @@ env/<stend>/secrets.env    секреты — НА СЕРВЕРЕ, chmod 600, gi
 
 ### Шаг 0. Подготовка на dev-машине (сервер не трогаем)
 
-1. Запушить ветку в origin — **деплой не триггерится** (workflow только на master):
+Запушить ветку в origin — **деплой не триггерится** (workflow только на master):
 
 ```bash
 git push -u origin feat/env-per-stend
 ```
 
-2. Привести README к новой модели (сейчас там ещё `cp .env.example .env`,
-   строки ~82/119/133 и cron-пример без `STAND`) — правка едет в ветке,
-   до мержа. Иначе master документирует выпиленный контракт.
+Что в репозитории уже сделано и в ветке не требует возвратов: README переписан
+под слои env (`.env.example` удалён), маркер `.stand`, слой
+`env/doitai/testzone.env` с `TEST_MCP_DOMAIN`, цель `certs-expand`, влита ветка
+полигона. Отдельно **DNS**: A-запись `mcp.test.doitai.ru` на IP doitai — это
+внешняя панель, делается человеком до Шага 7.
 
 ### Шаг 1. Сверка ключей на doitai (read-only)
 
@@ -235,10 +246,25 @@ gh run watch   # или: gh run list --limit 1
 коммитом, секреты — на сервере) и повторить: `gh workflow run "Deploy doitai.ru"`
 либо на сервере `cd /var/www/ai-box-infra && export STAND=doitai && make eco-deploy`.
 
-### Шаг 7. Постпроверки
+### Шаг 7. Сертификат нового домена + постпроверки
+
+Маркер уже лежит, поэтому `STAND=` в командах ниже не обязателен — оставлен
+явным для читаемости.
+
+Сначала расширить SAN под `mcp.test.doitai.ru` (A-запись обязана существовать —
+валидация webroot'ом ходит на этот домен):
 
 ```bash
 cd /var/www/ai-box-infra
+dig +short mcp.test.doitai.ru                # ожидание: IP doitai
+make certs-expand                            # --expand на lineage doitai.ru + reload
+docker compose exec nginx openssl x509 -noout -text \
+  -in /etc/letsencrypt/live/doitai.ru/fullchain.pem | grep -A1 'Subject Alternative Name'
+```
+
+Ожидание: 8 SAN (4 публичных + 3 тест-зоны + `mcp.test.doitai.ru`).
+
+```bash
 STAND=doitai make ps                        # все сервисы Up, не restarting
 STAND=doitai make nginx-test                # рендер+конфиг чист
 STAND=doitai make neo4j-smoke               # ожидание: gds 2.13.4
@@ -247,6 +273,18 @@ for h in doitai.ru app.doitai.ru api.doitai.ru admin.doitai.ru \
          app.test.doitai.ru api.test.doitai.ru admin.test.doitai.ru; do
   printf '%-26s %s\n' "$h" "$(curl -sS -o /dev/null -w '%{http_code}' -m 10 https://$h/)"
 done
+```
+
+Приёмка внешнего контура (критерии bead `ai-box-infra-3q9`) — TLS уже валидный,
+поэтому без `-k`:
+
+```bash
+curl -sS -o /dev/null -w 'runner/poll  %{http_code}\n' -m 10 \
+  -X POST https://mcp.test.doitai.ru/api/external/runner/poll     # ожидание: 401
+curl -sS -o /dev/null -w 'api/v1       %{http_code}\n' -m 10 \
+  https://mcp.test.doitai.ru/api/v1/integrations                  # ожидание: 404
+curl -sS -o /dev/null -w 'root         %{http_code}\n' -m 10 \
+  https://mcp.test.doitai.ru/                                     # ожидание: 404
 ```
 
 Отдельно — живой сценарий приложения (создание чата/шаг) и то, что диктовка
@@ -293,38 +331,28 @@ export STAND=doitai && make config && echo "стек не зависит от п
 
 ---
 
-## Порядок мержа: пересечение с ветками полигона
+## Ветка полигона: сведено, отдельного мержа не нужно
 
-Ветка `feat/polygon-runner-ingress` (bead `ai-box-infra-3q9`, внешний вход
-`mcp.test.doitai.ru`) конфликтует с этой:
+`feat/polygon-runner-ingress` (bead `ai-box-infra-3q9`) влита в
+`feat/env-per-stend` мержем `da54f89` — в master обе задачи уезжают вместе, одним
+гейтом. Что было разведено при сведении:
 
-| Файл | Пересечение |
+| Файл | Пересечение и как решено |
 |---|---|
-| `Makefile` | обе правят верх файла: env-per-stend — блок `-include`/`COMPOSE`, polygon — `DOMAINS` (+ тест-SAN через `$(if …)`) и `testzone-sync` |
-| `docker-compose.testzone.yml` | polygon добавляет **обязательный** `TEST_MCP_DOMAIN:?` |
-| `.env.example` | polygon дописывает ключ в файл, который env-per-stend замещает `env/example/config.env` |
-| `.claude/wiki/{concepts/deployment-topologies.md,log.md}` | обе дописывают секции |
+| `Makefile` | верх файла: слои env-per-stend (`STAND`/`.stand`/`-include`/`COMPOSE`) + `DOMAINS` полигона с тест-SAN через `$(if …)`. Проверено: doitai → 8 `-d`, amulex → 4, пустых `-d` нет |
+| `docker-compose.testzone.yml` | обязательный `TEST_MCP_DOMAIN:?` — значение переехало в слой `env/doitai/testzone.env` |
+| `.env.example` | удалён как мёртвый дубль; TEST_*-ключи описаны в новом `env/example/testzone.env`, пояснения ASR/Qdrant/Neo4j — в `env/example/config.env`/`secrets.env` |
+| `.claude/wiki/{concepts/deployment-topologies.md,log.md}` | обе секции сохранены |
+| SAN сертификата | добавлена цель `make certs-expand` (renew SAN не расширяет) — Шаг 7 |
 
-**Рекомендация — polygon первым** (он завершён и держится на текущей модели
-flat-`.env`; его гейт — `TEST_MCP_DOMAIN` в живом `.env` doitai + DNS + расширение
-SAN). После его мержа `feat/env-per-stend` ребейзится на master и добирает:
-
-1. `TEST_MCP_DOMAIN=mcp.test.doitai.ru` → `env/doitai/testzone.env`
-   (иначе после мержа `compose up` на doitai красный на `:?`);
-2. `DOMAINS` из polygon (вариант с `$(if …)` совместим со слоями: `testzone.env`
-   подключается только на doitai, на прочих стендах переменные пусты);
-3. `testzone-sync`-строку для `mcp.conf.template`;
-4. комментарий про `TEST_MCP_DOMAIN` — в `env/example/config.env`, после чего
-   `.env.example` удалить (он становится мёртвым дублем).
-
-Если раньше уйдёт env-per-stend — те же четыре пункта делает ветка полигона,
-и её гейт превращается в «ключ в `env/doitai/testzone.env`», а не в живой `.env`.
+Единственное, что осталось от гейта полигона отдельным пунктом: **A-запись
+`mcp.test.doitai.ru`** (внешняя DNS-панель) до `certs-expand`.
 
 ---
 
 ## Чек-лист (doitai)
 
-- [ ] ветка запушена в origin, README приведён к env-per-stend
+- [ ] ветка `feat/env-per-stend` (с влитым полигоном) запушена в origin
 - [ ] сверка ключей `.env` ↔ новые слои выполнена, расхождения разобраны
 - [ ] `ASR_WS_UPSTREAM`, `QDRANT_VERSION`, `ECOSYSTEM_SUBNET/GATEWAY` явно решены
 - [ ] `env/doitai/config.env` финализирован и закоммичен
@@ -332,13 +360,12 @@ SAN). После его мержа `feat/env-per-stend` ребейзится н�
 - [ ] `make -C <worktree> STAND=doitai config` → exit 0, worktree и копия секрета убраны
 - [ ] маркер `.stand` = `doitai` положен; вызовы `make` из cron/Jenkins/timers
       инвентаризованы (не из чужого каталога, без ошибочного `STAND=`)
+- [ ] A-запись `mcp.test.doitai.ru` создана (до `certs-expand`)
 - [ ] мерж в master, деплой зелёный
+- [ ] `make certs-expand` прошёл, в SAN 8 доменов
 - [ ] `ps`/`nginx-test`/`neo4j-smoke`/7 доменов/образ qdrant — проверены
+- [ ] приёмка внешнего контура: `runner/poll` 401, `api/v1` 404, `/` 404
 - [ ] плоский `.env` удалён после контрольного срока (бэкап в `~`)
-- [ ] bead `ai-box-infra-11l` обновлён, `.claude/wiki/decisions/env-per-stend.md`
-      дополнен фактическими отклонениями, запись в `log.md`
-
-## Известные пробелы (следующими задачами)
-
-- `.env.example` продолжает существовать рядом с `env/example/` — выпил
-  привязан к мержу ветки полигона (см. выше).
+- [ ] beads `ai-box-infra-11l` и `ai-box-infra-3q9` закрыты,
+      `.claude/wiki/decisions/env-per-stend.md` дополнен фактическими
+      отклонениями, запись в `log.md`

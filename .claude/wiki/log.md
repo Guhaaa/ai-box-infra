@@ -123,3 +123,20 @@ env → маркер `./.stand` (некоммитный, в .gitignore) → `loc
 добавлены явно, иначе `certs-init` сузил бы SAN. Обновлены
 [[entity:nginx-edge]], [[concept:deployment-topologies]]. Реальный
 DNS/сертификат/деплой — вне этой задачи, делает главная сессия.
+
+## [2026-07-30] ingest | Сведение env-per-stend с ветку полигона + README/certs-expand
+
+Ветка `feat/polygon-runner-ingress` (bead ai-box-infra-3q9) влита в
+`feat/env-per-stend` — в master уезжают одним гейтом. Разведено: Makefile (слои
+env-per-stend + `DOMAINS` с тест-SAN через `$(if …)`; проверено — doitai 8 `-d`,
+amulex 4, пустых `-d` нет), `TEST_MCP_DOMAIN` переехал из плоского `.env` в
+`env/doitai/testzone.env`, добавлен шаблон `env/example/testzone.env`,
+`.env.example` удалён как мёртвый дубль. README переписан под стенды (раскладка
+файлов, приоритет STAND → .stand → local, dev через симлинк
+`docker-compose.override.yml`, который теперь в .gitignore). Новая цель
+`certs-expand`: `certbot renew` SAN НЕ расширяет, поэтому домен, добавленный в
+`DOMAINS`, без неё в сертификат не попадал бы (тихая поломка — nginx стартует и
+`nginx -t` проходит, серт отдаётся с чужим именем). Раннбук Фазы 2 стал общим
+гейтом на две задачи: A-запись `mcp.test.doitai.ru` → мерж → `certs-expand` →
+приёмка внешнего контура (401/404/404). Страницы — [[decision:env-per-stend]],
+[[entity:shared-stack]], [[concept:deployment-topologies]], [[entity:nginx-edge]].

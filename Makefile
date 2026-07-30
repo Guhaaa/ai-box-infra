@@ -57,7 +57,7 @@ NEO4J_PLUGINS_DIR := neo4j/plugins
 NEO4J_GDS_JAR     := $(NEO4J_PLUGINS_DIR)/neo4j-graph-data-science-$(NEO4J_GDS_VERSION).jar
 
 .PHONY: up down restart ps logs build-base build-base-dev testzone-enable testzone-sync mariadb-cli redis-cli \
-        certs-init certs-renew certs-selfsigned nginx-reload nginx-render nginx-test db-import \
+        certs-init certs-expand certs-renew certs-selfsigned nginx-reload nginx-render nginx-test db-import \
         neo4j-plugins neo4j-cli neo4j-smoke neo4j-dump neo4j-restore config eco-deploy
 
 # neo4j-plugins — предшаг: host-каталог neo4j/plugins должен быть пополнён
@@ -148,6 +148,16 @@ nginx-reload:
 certs-init:
 	$(COMPOSE) run --rm -p 80:80 certbot certonly --standalone \
 		--non-interactive --agree-tos -m $(CERT_EMAIL) $(DOMAINS)
+
+# Расширение SAN существующего lineage (добавили домен в config/testzone-слой).
+# ОБЯЗАТЕЛЬНО отдельной целью: `certbot renew` перевыпускает СТАРЫЙ список SAN и
+# новый домен сам не подхватит — vhost отдавал бы серт с чужим именем. Работает
+# на живом стеке (webroot через nginx), в отличие от standalone certs-init.
+certs-expand:
+	$(COMPOSE) run --rm certbot certonly --webroot -w /var/www/certbot \
+		--non-interactive --agree-tos -m $(CERT_EMAIL) --expand \
+		--cert-name $(if $(CERT_NAME),$(CERT_NAME),$(ROOT_DOMAIN)) $(DOMAINS)
+	$(MAKE) nginx-reload
 
 # Продление на работающем стеке (webroot через nginx) + перечитка сертификата.
 # Повесить в cron хоста: 0 4 * * 1  cd /var/www/ai-box-infra && make certs-renew
