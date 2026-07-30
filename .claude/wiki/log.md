@@ -140,3 +140,23 @@ amulex 4, пустых `-d` нет), `TEST_MCP_DOMAIN` переехал из п�
 гейтом на две задачи: A-запись `mcp.test.doitai.ru` → мерж → `certs-expand` →
 приёмка внешнего контура (401/404/404). Страницы — [[decision:env-per-stend]],
 [[entity:shared-stack]], [[concept:deployment-topologies]], [[entity:nginx-edge]].
+
+## [2026-07-30] ingest | Фаза 2 env-per-stend ВЫПОЛНЕНА на doitai + внешний контур раннеров
+
+Мерж `0319a93` в master, деплой зелёный (3м09с). Сверка живого `.env` с слоями
+вскрыла три ключа, потеря которых ломала бы тихо: `QDRANT_VERSION=v1.17.0`
+(дефолт v1.12.4 = даунгрейд storage), `REDIS_MAXMEMORY=2gb` (дефолт 512mb —
+вчетверо меньше, при volatile-lru очереди без TTL не вытесняются → OOM на
+запись), `ASR_WS_UPSTREAM`; остальные 16 совпали. `COMPOSE_PROJECT_NAME` в
+`.env` не было — имя проекта пинится `name: ai_box_infra` в compose, поэтому
+тома не «переехали» (главный риск потери данных снят проверкой, а не удачей).
+Пересоздан только `infra_nginx`; mariadb/redis/qdrant/neo4j не перезапускались,
+`/var/lib/mysql` 469M до и после, стеки вне эко-контура (`ai_box_pdn`,
+`docker`/ollama) не тронуты. До мержа сняты бэкапы: дамп 7 баз MariaDB, копия
+каталога данных Redis, снапшот коллекции Qdrant. Сертификат doitai.ru расширен
+`make certs-expand` до 8 SAN (89 дней), приёмка внешнего контура
+`mcp.test.doitai.ru`: runner/poll 401, /api/v1 404, / 404, `.php`-обход 404.
+Побочно: на doitai не было cron продления сертификата вовсе — поставлен
+недельный `make certs-renew`. Уроки и остаток (выпил плоского `.env` после
+контрольного срока; amulex не трогаем) — `docs/runbooks/env-per-stend-migration.md`,
+[[decision:env-per-stend]].

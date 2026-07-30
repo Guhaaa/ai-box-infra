@@ -80,7 +80,9 @@ updated: 2026-07-30
 Несекретный конфиг стенда версионируется в `env/<stend>/config.env`, секреты — в
 некоммитном `env/<stend>/secrets.env` на сервере. Makefile слоями подключает
 config → (условно) testzone → secrets и мержит через `docker compose --env-file`.
-Боевая миграция стендов — `docs/runbooks/env-per-stend-migration.md`.
+Боевая миграция стендов — `docs/runbooks/env-per-stend-migration.md`; **doitai
+переведён 2026-07-30** (маркер `.stand=doitai`, слои `env/doitai/*`, плоский
+`.env` пока оставлен как страховка откату), **amulex остаётся на плоском `.env`**.
 Подробности и trade-off'ы — [[decision:env-per-stend]].
 
 ## Связи

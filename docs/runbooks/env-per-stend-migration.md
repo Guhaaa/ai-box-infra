@@ -1,11 +1,18 @@
 # Runbook: миграция боевых стендов на env-per-stend (Фаза 2)
 
-> **Статус: НЕ ВЫПОЛНЕН.** Всё, что делается в репозитории, готово на ветке
-> `feat/env-per-stend`; в master **не запушено**. Остались операции на боевых
-> серверах — только с явного «go» человека.
+> **Статус: ВЫПОЛНЕН на doitai 2026-07-30** (merge `0319a93` в master, деплой
+> зелёный 3м09с). Пересоздан **только** `infra_nginx` (новый `TEST_MCP_DOMAIN`
+> в environment); mariadb/redis/qdrant/neo4j не перезапускались (uptime 2 недели
+> / 4 дня), тома и размер данных те же (`/var/lib/mysql` 469M до и после),
+> стеки вне эко-контура (`ai_box_pdn`, `docker`/ollama) не тронуты. Сертификат
+> расширен до 8 SAN, приёмка внешнего контура пройдена (401/404/404/404).
 >
-> Ветка `feat/polygon-runner-ingress` **влита сюда** (merge `da54f89`): внешний
-> вхост `mcp.test.doitai.ru` уезжает в master тем же мержем, поэтому гейт ниже
+> **Осталось:** выпил плоского `.env` на doitai после контрольного срока
+> (Шаг 8) и стенд **amulex** — по решению от 2026-07-30 его не трогаем, Фаза 2B
+> ниже остаётся инструкцией на будущее окно.
+>
+> Ветка `feat/polygon-runner-ingress` была влита сюда (merge `da54f89`): внешний
+> вхост `mcp.test.doitai.ru` уехал в master тем же мержем, поэтому гейт ниже
 > один и общий на две задачи — beads `ai-box-infra-11l` и `ai-box-infra-3q9`.
 >
 > Решение и trade-off'ы — `.claude/wiki/decisions/env-per-stend.md`, внешний
@@ -352,20 +359,50 @@ export STAND=doitai && make config && echo "стек не зависит от п
 
 ## Чек-лист (doitai)
 
-- [ ] ветка `feat/env-per-stend` (с влитым полигоном) запушена в origin
-- [ ] сверка ключей `.env` ↔ новые слои выполнена, расхождения разобраны
-- [ ] `ASR_WS_UPSTREAM`, `QDRANT_VERSION`, `ECOSYSTEM_SUBNET/GATEWAY` явно решены
-- [ ] `env/doitai/config.env` финализирован и закоммичен
-- [ ] `env/doitai/secrets.env` на сервере: 7 ключей, непустые, chmod 600, без `#`/`$`
-- [ ] `make -C <worktree> STAND=doitai config` → exit 0, worktree и копия секрета убраны
-- [ ] маркер `.stand` = `doitai` положен; вызовы `make` из cron/Jenkins/timers
+- [x] ветка `feat/env-per-stend` (с влитым полигоном) запушена в origin
+- [x] сверка ключей `.env` ↔ новые слои выполнена, расхождения разобраны
+- [x] `ASR_WS_UPSTREAM`, `QDRANT_VERSION`, `ECOSYSTEM_SUBNET/GATEWAY` явно решены
+- [x] `env/doitai/config.env` финализирован и закоммичен
+- [x] `env/doitai/secrets.env` на сервере: 7 ключей, непустые, chmod 600, без `#`/`$`
+- [x] `make -C <worktree> STAND=doitai config` → exit 0, worktree и копия секрета убраны
+- [x] маркер `.stand` = `doitai` положен; вызовы `make` из cron/Jenkins/timers
       инвентаризованы (не из чужого каталога, без ошибочного `STAND=`)
-- [ ] A-запись `mcp.test.doitai.ru` создана (до `certs-expand`)
-- [ ] мерж в master, деплой зелёный
-- [ ] `make certs-expand` прошёл, в SAN 8 доменов
-- [ ] `ps`/`nginx-test`/`neo4j-smoke`/7 доменов/образ qdrant — проверены
-- [ ] приёмка внешнего контура: `runner/poll` 401, `api/v1` 404, `/` 404
+- [x] A-запись `mcp.test.doitai.ru` создана (до `certs-expand`)
+- [x] мерж в master, деплой зелёный
+- [x] `make certs-expand` прошёл, в SAN 8 доменов
+- [x] `ps`/`nginx-test`/`neo4j-smoke`/7 доменов/образ qdrant — проверены
+- [x] приёмка внешнего контура: `runner/poll` 401, `api/v1` 404, `/` 404
 - [ ] плоский `.env` удалён после контрольного срока (бэкап в `~`)
 - [ ] beads `ai-box-infra-11l` и `ai-box-infra-3q9` закрыты,
       `.claude/wiki/decisions/env-per-stend.md` дополнен фактическими
       отклонениями, запись в `log.md`
+
+## Боевые уроки прогона на doitai (2026-07-30)
+
+- **Сверка вскрыла три ключа**, потеря которых ломала бы тихо: `QDRANT_VERSION`
+  (живой storage v1.17.0 против дефолта v1.12.4), `REDIS_MAXMEMORY=2gb` (дефолт
+  512mb — вчетверо меньше; при `volatile-lru` ключи без TTL, т.е. очереди
+  Horizon, не вытесняются, и запись начала бы отдавать OOM), `ASR_WS_UPSTREAM`.
+  Остальные 16 ключей живого `.env` совпали один-в-один.
+- **`COMPOSE_PROJECT_NAME` в `.env` не оказалось** — имя проекта пинится строкой
+  `name: ai_box_infra` в `docker-compose.yml`, поэтому при переходе на
+  `--env-file` тома не «переехали». Это был главный риск потери данных: другое
+  имя проекта = новые пустые тома и пустые БД под работающими приложениями.
+  На новом стенде проверять **до** мержа: `grep COMPOSE .env` и `name:` в compose.
+- **Плоский `.env` после перехода стал ловушкой для ручных команд**: `docker
+  compose …` без `--env-file` подхватывает его автоматически и падает на
+  `TEST_MCP_DOMAIN is missing a value`. Ручные вызовы — только через `make`
+  (или с тремя `--env-file`). Ещё один довод довести Шаг 8 до конца.
+- **`cron` на doitai не было вовсе** — `certs-renew` никогда не был запланирован,
+  сертификат жил на ручных продлениях. Поставлена недельная строка (стенд из
+  маркера, лог в `~/certs-renew.log`).
+- **Гигиена секретов:** `REDIS_PASSWORD` виден в `docker inspect`/`ps` — compose
+  передаёт его аргументом `--requirepass`. Не эта задача внесла, но на хосте с
+  недоверенными пользователями пароль читается любым, у кого есть docker;
+  кандидат на переезд в файл конфигурации/`REDIS_ARGS`.
+- `docker exec infra_nginx openssl` не работает (в alpine-образе nginx нет
+  openssl) — сертификат смотреть контейнером certbot (`certbot certificates`).
+- Пересоздание `infra_nginx` на `up` неизбежно (меняется `environment`), и новый
+  vhost появляется только после `post-deploy` → `testzone-sync` + render + reload:
+  между `up` и reload шаблона `test-mcp.conf` в контейнере ещё нет. Это нормально,
+  простоя нет — nginx перезапускается за секунды со старым набором vhost'ов.
