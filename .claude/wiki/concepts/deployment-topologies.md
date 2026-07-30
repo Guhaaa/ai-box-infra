@@ -61,10 +61,12 @@ updated: 2026-07-04
 
 ## Выбор стенда — env-per-stend
 
-Стенд копии infra выбирается переменной `STAND` (local | doitai | amulex);
-несекретный конфиг стенда версионируется в `env/<stend>/config.env`, секреты — в
+Стенд копии infra (local | doitai | amulex) выбирается по приоритету:
+переменная `STAND` → некоммитный маркер `./.stand` на хосте → `local`.
+Несекретный конфиг стенда версионируется в `env/<stend>/config.env`, секреты — в
 некоммитном `env/<stend>/secrets.env` на сервере. Makefile слоями подключает
 config → (условно) testzone → secrets и мержит через `docker compose --env-file`.
+Боевая миграция стендов — `docs/runbooks/env-per-stend-migration.md`.
 Подробности и trade-off'ы — [[decision:env-per-stend]].
 
 ## Связи

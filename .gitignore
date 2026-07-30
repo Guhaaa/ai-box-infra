@@ -5,6 +5,9 @@
 env/*/secrets.env
 !env/example/secrets.env
 
+# Маркер стенда: имя стенда одной строкой, своё на каждом хосте (Makefile: STAND).
+.stand
+
 # Рендер nginx-шаблонов (envsubst из nginx/templates/ при старте контейнера)
 nginx/conf.d/root.conf
 nginx/conf.d/front.conf

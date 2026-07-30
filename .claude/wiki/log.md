@@ -96,3 +96,15 @@ cron/Jenkins (без `STAND` берётся стенд `local`), постпро�
 — даунгрейд storage, `ASR_WS_UPSTREAM` — заглушка 127.0.0.1:9, `ECOSYSTEM_SUBNET`)
 и порядок мержа с `feat/polygon-runner-ingress` (конфликт Makefile/.env.example,
 обязательный `TEST_MCP_DOMAIN`). Пробелы — [[decision:env-per-stend]].
+
+## [2026-07-30] ingest | Маркер стенда .stand + громкая ошибка на незнакомом стенде
+
+Закрыт пробел env-per-stend: `STAND ?= $(strip $(shell cat .stand …))` — приоритет
+env → маркер `./.stand` (некоммитный, в .gitignore) → `local`. Незнакомый стенд
+валит `make` сразу `$(error)`-ом вместо невнятного вороха `:?` от compose,
+`make config` печатает `[stand] <стенд> (env/<стенд> [+ testzone])`. Мотив: вызовы
+`make` из cron (`certs-renew`)/Jenkins/ssh на боевом хосте больше не зависят от
+того, вспомнил ли человек `STAND=` — иначе брался конфиг dev-машины и рендерились
+чужие домены. Проверено на пяти режимах (без маркера, маркер с пробелами, env
+поверх маркера, битый маркер, штатный local). Раннбук Фазы 2 обновлён —
+[[decision:env-per-stend]].

@@ -1,11 +1,23 @@
 # Управление shared-стеком экосистемы AiBox.
 # Все команды выполняются на сервере из корня этого репозитория.
 
-# Стенд этой копии infra: local (дефолт) | doitai | amulex. Env-переменная STAND
-# перекрывает дефолт (?=). Несекретный конфиг + секреты — из env/$(STAND)/.
-# Плоский .env выпилен — см. .claude/wiki/decisions/env-per-stend.md.
-STAND    ?= local
+# Стенд этой копии infra: local | doitai | amulex. Несекретный конфиг + секреты —
+# из env/$(STAND)/. Плоский .env выпилен — .claude/wiki/decisions/env-per-stend.md.
+#
+# Приоритет: env-переменная STAND → маркер ./.stand → local. Маркер (некоммитный,
+# одна строка с именем стенда) объявляет стенд НА ХОСТЕ раз и навсегда: иначе
+# любой вызов без STAND= (cron certs-renew, Jenkins, руки в ssh) молча брал бы
+# конфиг dev-машины и рендерил чужие домены на боевом стенде.
+STAND    ?= $(strip $(shell cat .stand 2>/dev/null || echo local))
 ENVDIR   := env/$(STAND)
+
+# Незнакомый стенд обязан падать громко и сразу: без config.env слои просто
+# не подключатся (-include молчит), и ошибка вылезла бы позже — невнятным
+# ворохом ':?' от compose.
+ifeq ($(wildcard $(ENVDIR)/config.env),)
+$(error стенд '$(STAND)' неизвестен: нет $(ENVDIR)/config.env. Задай STAND=<стенд>, поправь маркер .stand или создай слои по env/example/)
+endif
+
 # testzone.env — условный overlay-слой: подключается, только если есть в каталоге
 # стенда (=doitai). Тот же признак, что и активный testzone-override.
 TESTZONE := $(wildcard $(ENVDIR)/testzone.env)
@@ -61,8 +73,10 @@ ps:
 	$(COMPOSE) ps
 
 # Валидация интерполяции env текущего стенда: рендерит и молча проверяет.
-# Ненулевой код = незаполненная/потерянная переменная. Использует STAND.
+# Ненулевой код = незаполненная/потерянная переменная. Печатает выбранный стенд —
+# главная проверка перед боевой командой (не тот стенд = чужие домены).
 config:
+	@echo "[stand] $(STAND) ($(ENVDIR)$(if $(TESTZONE), + testzone,))"
 	$(COMPOSE) config --quiet
 
 logs:

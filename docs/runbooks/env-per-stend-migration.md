@@ -21,8 +21,10 @@ env/<stend>/testzone.env  overlay тест-зоны — В GIT (только с�
 env/<stend>/secrets.env    секреты — НА СЕРВЕРЕ, chmod 600, gitignored
 ```
 
-Стенд выбирается переменной `STAND` (`local` по умолчанию), Makefile мержит
-слои многократным `docker compose --env-file` (секреты поверх). Деплойный
+Стенд выбирается так: env-переменная `STAND` → некоммитный маркер `./.stand`
+(одна строка с именем стенда) → `local`. Незнакомый стенд валит `make` сразу с
+внятным сообщением (нет `env/<stend>/config.env`). Makefile мержит слои
+многократным `docker compose --env-file` (секреты поверх). Деплойный
 вызов doitai становится `export STAND=doitai && make eco-deploy`
 (`build-base` + `up` + идемпотентный `deploy/post-deploy.sh`).
 
@@ -52,10 +54,11 @@ env/<stend>/secrets.env    секреты — НА СЕРВЕРЕ, chmod 600, gi
      (`ai-box-infra-0fq`) → без переноса ключа диктовка отвалится;
    - `MARIADB_BUFFER_POOL`, `REDIS_MAXMEMORY`, `NEO4J_HEAP`/`NEO4J_PAGECACHE`,
      `NEO4J_VERSION`, `CERT_NAME`, `APPS_ROOT`.
-4. **Забытый `STAND` = стенд `local`.** Любой вызов `make` на боевом сервере
-   без `STAND=<stend>` возьмёт `env/local/config.env` (домены dev-машины) —
-   отрендерит чужие vhost'ы и/или запросит сертификат на чужой lineage.
-   Поэтому §«Инвентарь вызовов make» — обязательный шаг, а не формальность.
+4. **Не положенный маркер `.stand` = стенд `local`.** Вызов `make` на боевом
+   сервере, где нет ни `STAND=` в команде, ни маркера, возьмёт
+   `env/local/config.env` (домены dev-машины) — отрендерит чужие vhost'ы и/или
+   запросит сертификат на чужой lineage. Маркер закрывает это на хосте раз и
+   навсегда (Шаг 5), но положить его — обязательный шаг, а не формальность.
 
 ---
 
@@ -162,7 +165,11 @@ cp env/doitai/secrets.env /tmp/eps-check/env/doitai/secrets.env
 make -C /tmp/eps-check STAND=doitai config; echo "exit=$?"
 ```
 
-Ожидание: `exit=0`. Также глазами сверить рендер до боя:
+Ожидание: `exit=0`, первая строка — `[stand] doitai (env/doitai + testzone)`.
+`STAND=doitai` здесь задаётся явно: маркер `.stand` некоммитный, во worktree его
+нет, и без переменной проверка ушла бы на стенд `local`.
+
+Также глазами сверить рендер до боя:
 
 ```bash
 make -C /tmp/eps-check STAND=doitai -n up | head -3          # видны все --env-file
@@ -180,10 +187,24 @@ cd /var/www/ai-box-infra && git worktree remove --force /tmp/eps-check
 
 `docker compose config` только рендерит — контейнеры и сети не трогает.
 
-### Шаг 5. Инвентарь вызовов `make` на хосте (до мержа)
+### Шаг 5. Маркер стенда + инвентарь вызовов `make` (до мержа)
 
-Всё, что дёргает `make` из этого каталога, обязано нести `STAND=doitai`.
-Патчить можно **заранее**: master-версия Makefile переменную игнорирует.
+Положить маркер на сервере — **можно и нужно заранее**: master-версия Makefile
+его не читает, файл gitignored и `git pull` ему не мешает.
+
+```bash
+cd /var/www/ai-box-infra
+echo doitai > .stand
+```
+
+После мержа любой вызов `make` из этого каталога (cron, Jenkins, руки в ssh)
+сам подхватит стенд `doitai`; ошибочное имя в маркере валит `make` сразу, а не
+рендерит чужой конфиг. Проверка после мержа — первая строка `make config`:
+`[stand] doitai (env/doitai + testzone)`.
+
+Дальше — инвентарь: убедиться, что нет вызовов `make` из **другого** каталога
+(там маркер не подхватится) и что ни один вызов не задаёт `STAND=` руками с
+неверным значением (env перекрывает маркер).
 
 ```bash
 crontab -l | grep -n make; sudo crontab -l 2>/dev/null | grep -n make
@@ -191,10 +212,11 @@ grep -rn "ai-box-infra" /etc/cron.d/ /etc/cron.*/ 2>/dev/null
 systemctl list-timers --all | grep -i infra
 ```
 
-Каноничный вид cron-строки продления сертификата:
+Каноничный вид cron-строки продления сертификата (стенд берётся из маркера;
+`STAND=doitai` перед `make` тоже допустим — явное не мешает):
 
 ```
-0 4 * * 1  cd /var/www/ai-box-infra && STAND=doitai make certs-renew
+0 4 * * 1  cd /var/www/ai-box-infra && make certs-renew
 ```
 
 `certs-init` не запускать: он занимает :80 standalone-режимом и конфликтует с
@@ -252,9 +274,10 @@ export STAND=doitai && make config && echo "стек не зависит от п
 - **Нет CI-триггера**: infra на amulex деплоится руками (Jenkins на eco-таргеты
   ещё не переведён — `ai-box-infra-ki7`). Мерж в master сам по себе на amulex
   ничего не меняет — стенд мигрирует отдельно, `git pull` делает человек.
-- Стенд объявляется в деплойном вызове: `export STAND=amulex && make eco-deploy`.
-  Без этого — стенд `local` (см. риск 4). Проверить и Jenkins-джобу, и cron,
-  и шпаргалки в `docs/runbooks/split-cutover-ai-box.md`.
+- Маркер на сервере: `echo amulex > .stand` (кладётся заранее, как на doitai).
+  Без маркера и без `STAND=` в команде — стенд `local` (риск 4). Проверить
+  Jenkins-джобу, cron и шпаргалки в `docs/runbooks/split-cutover-ai-box.md` на
+  предмет вызовов `make` из другого каталога.
 - Тест-зоны нет → `env/amulex/testzone.env` не создаётся, слой не подключается.
 - Исторические особенности контура: Redis DB-индексы прод-исторические
   (ai-box 0/1, DR 6/7, MCP 8/9 — не по README), фаза 3 (захват 80/443)
@@ -307,7 +330,8 @@ SAN). После его мержа `feat/env-per-stend` ребейзится н�
 - [ ] `env/doitai/config.env` финализирован и закоммичен
 - [ ] `env/doitai/secrets.env` на сервере: 7 ключей, непустые, chmod 600, без `#`/`$`
 - [ ] `make -C <worktree> STAND=doitai config` → exit 0, worktree и копия секрета убраны
-- [ ] cron/Jenkins/timers несут `STAND=doitai`
+- [ ] маркер `.stand` = `doitai` положен; вызовы `make` из cron/Jenkins/timers
+      инвентаризованы (не из чужого каталога, без ошибочного `STAND=`)
 - [ ] мерж в master, деплой зелёный
 - [ ] `ps`/`nginx-test`/`neo4j-smoke`/7 доменов/образ qdrant — проверены
 - [ ] плоский `.env` удалён после контрольного срока (бэкап в `~`)
@@ -316,10 +340,5 @@ SAN). После его мержа `feat/env-per-stend` ребейзится н�
 
 ## Известные пробелы (следующими задачами)
 
-- **Нет маркера стенда на сервере.** Спека предполагала файл-маркер `.stand`,
-  реализация ограничилась `STAND ?= local`. Пока стенд живёт только в вызове,
-  риск 4 не закрыт технически (защита — дисциплина и этот раннбук). Кандидат
-  на фикс: `STAND ?= $(shell cat .stand 2>/dev/null || echo local)` +
-  `.stand` в `.gitignore`.
 - `.env.example` продолжает существовать рядом с `env/example/` — выпил
   привязан к мержу ветки полигона (см. выше).
