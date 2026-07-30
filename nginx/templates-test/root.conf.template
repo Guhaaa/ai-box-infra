@@ -1,0 +1,52 @@
+# ${TEST_ROOT_DOMAIN} — тест-копия лендинга (ветка develop репозитория
+# ai-box-site, rsync из CI в ${APPS_ROOT}/test/ai-box-site).
+#
+# Прод-аналог — nginx/templates/root-landing.conf.template. Здесь переменная
+# ОБЯЗАТЕЛЬНАЯ (docker-compose.testzone.yml, :?): тест-зона включается
+# симлинком override целиком, гейтить внутри неё нечего.
+
+server {
+    listen 80;
+    server_name ${TEST_ROOT_DOMAIN};
+    include snippets/acme.conf;
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${TEST_ROOT_DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
+    include snippets/ssl.conf;
+
+    access_log /var/log/nginx/landing-test.access.log;
+    error_log  /var/log/nginx/landing-test.error.log;
+
+    root /var/www/test/ai-box-site;
+    index index.html;
+
+    # Тест-копия публична — не должна индексироваться как дубль боевой.
+    # add_header НЕ наследуется в location, где есть свой add_header, поэтому
+    # заголовок продублирован в блоке ассетов (иначе они остались бы без него).
+    add_header X-Robots-Tag "noindex, nofollow" always;
+
+    location / {
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        try_files $uri $uri.html $uri/ =404;
+    }
+
+    location ~* \.(css|js|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|pdf)$ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        try_files $uri =404;
+    }
+
+    location ~ /\.(ht|env|git|github|claude|idea) { deny all; }
+    location ~* \.md$                             { deny all; }
+    location ^~ /docs/                            { deny all; }
+}

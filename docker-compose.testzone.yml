@@ -17,6 +17,7 @@ services:
       TEST_API_DOMAIN: ${TEST_API_DOMAIN:?}
       TEST_ADMIN_DOMAIN: ${TEST_ADMIN_DOMAIN:?}
       TEST_MCP_DOMAIN: ${TEST_MCP_DOMAIN:?}
+      TEST_ROOT_DOMAIN: ${TEST_ROOT_DOMAIN:?TEST_ROOT_DOMAIN обязателен (лендинг тест-зоны)}
     volumes:
       # Шаблоны тест-vhost'ов доставляются в nginx/templates/ на хосте
       # командой `make testzone-enable` (файл-маунт внутрь ro-тома невозможен).
@@ -25,3 +26,4 @@ services:
       - ${APPS_ROOT:-/var/www}/test/ai-box-front/dist:/var/www/test/ai-box-front/dist:ro
       - ${APPS_ROOT:-/var/www}/test/ai-box-data-registry:/var/www/test/ai-box-data-registry:ro
       - ${APPS_ROOT:-/var/www}/test/ai-box-mcp:/var/www/test/ai-box-mcp:ro
+      - ${APPS_ROOT:-/var/www}/test/ai-box-site:/var/www/test/ai-box-site:ro
