@@ -7,8 +7,12 @@ COMPOSE = docker compose
 -include .env
 export
 
-# Домены одного SAN-сертификата (первый задаёт имя lineage = CERT_NAME)
-DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN)
+# Домены одного SAN-сертификата (первый задаёт имя lineage = CERT_NAME).
+# Тест-домены включены сюда осознанно: они уже в живом сертификате, и без них
+# certs-init сузил бы SAN и уронил тест-зону.
+DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN) \
+          -d $(TEST_FRONT_DOMAIN) -d $(TEST_API_DOMAIN) -d $(TEST_ADMIN_DOMAIN) \
+          -d $(TEST_MCP_DOMAIN)
 CERT_EMAIL ?= admin@amulex.ru
 
 # Neo4j: плагин GDS ставим сами (пин версии + sha256), НЕ через NEO4J_PLUGINS —
