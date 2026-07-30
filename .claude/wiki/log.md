@@ -160,3 +160,21 @@ amulex 4, пустых `-d` нет), `TEST_MCP_DOMAIN` переехал из п�
 недельный `make certs-renew`. Уроки и остаток (выпил плоского `.env` после
 контрольного срока; amulex не трогаем) — `docs/runbooks/env-per-stend-migration.md`,
 [[decision:env-per-stend]].
+
+## [2026-07-30] ingest | Плоский .env на doitai выпилен — переход завершён
+
+По решению человека выпил сделан в день мержа, без выдержки контрольного срока.
+Перед удалением: все 19 ключей сверены со слоями **по значениям** (не только по
+именам) — расхождений нет; на хосте нет файлов, ссылающихся на
+`ai-box-infra/.env` (app-стеки держат свои). Копии — вне git:
+`~/env-backup-doitai-2026-07-30.env` и в каталоге бэкапов, chmod 600, `cmp`
+побайтно (откат остаётся возможным: положить копию назад + `git revert`).
+После удаления прогнаны ВСЕ пути, которые неявно опирались на автоподхват
+`.env` докером: ручной `gh workflow run` → полный `git pull && make eco-deploy`
+зелёный; `make nginx-reload`; путь cron `make certs-renew` (сертификат не due →
+`No renewals were attempted` + render/test/reload); `make config`/`make ps`
+(6 сервисов Up); домены снаружи. Гоча: `certbot renew --dry-run` без
+`--non-interactive` подвисает и держит `/etc/letsencrypt/.certbot.lock` —
+следующий запуск падает `Another instance of Certbot is already running`.
+Детали — `docs/runbooks/env-per-stend-migration.md` (Шаг 8),
+[[decision:env-per-stend]].

@@ -7,9 +7,13 @@
 > стеки вне эко-контура (`ai_box_pdn`, `docker`/ollama) не тронуты. Сертификат
 > расширен до 8 SAN, приёмка внешнего контура пройдена (401/404/404/404).
 >
-> **Осталось:** выпил плоского `.env` на doitai после контрольного срока
-> (Шаг 8) и стенд **amulex** — по решению от 2026-07-30 его не трогаем, Фаза 2B
-> ниже остаётся инструкцией на будущее окно.
+> Плоский `.env` на doitai **удалён в тот же день** (по решению человека, без
+> выдержки контрольного срока — все 19 ключей совпадали со слоями значение-в-
+> значение, внешних ссылок на файл на хосте нет; копии лежат в
+> `~/env-backup-doitai-2026-07-30.env` и в каталоге бэкапов, chmod 600).
+>
+> **Осталось:** стенд **amulex** — по решению от 2026-07-30 его не трогаем,
+> Фаза 2B ниже остаётся инструкцией на будущее окно.
 >
 > Ветка `feat/polygon-runner-ingress` была влита сюда (merge `da54f89`): внешний
 > вхост `mcp.test.doitai.ru` уехал в master тем же мержем, поэтому гейт ниже
@@ -297,18 +301,56 @@ curl -sS -o /dev/null -w 'root         %{http_code}\n' -m 10 \
 Отдельно — живой сценарий приложения (создание чата/шаг) и то, что диктовка
 (ASR-локация) отвечает, если `ASR_WS_UPSTREAM` переносился.
 
-### Шаг 8. Выпил плоского `.env` — **после контрольного срока**
+### Шаг 8. Выпил плоского `.env`
 
 Пока `.env` жив, откат = `git revert` мержа (старый Makefile снова читает
-`.env`). Поэтому удаляем не в день мержа, а после зелёного деплоя + прогона
-хотя бы одного `certs-renew` по cron:
+`.env`). Отсюда правило: удалять **только с бэкапом вне git** — тогда откат
+остаётся возможным (положить копию назад) и контрольный срок необязателен.
+На doitai выпил сделан в день мержа; перед удалением проверено:
+
+1. **все ключи совпадают со слоями по значениям**, а не только по именам:
 
 ```bash
 cd /var/www/ai-box-infra
-cp .env ~/env-backup-doitai-$(date +%F).env && chmod 600 ~/env-backup-doitai-*.env
-rm .env
-export STAND=doitai && make config && echo "стек не зависит от плоского .env"
+for k in $(grep -oE '^[A-Z0-9_]+' .env | sort -u); do
+  old=$(grep -E "^$k=" .env | tail -1 | cut -d= -f2-)
+  new=$(grep -hE "^$k=" env/$(cat .stand)/config.env env/$(cat .stand)/testzone.env \
+                        env/$(cat .stand)/secrets.env 2>/dev/null | tail -1 | cut -d= -f2-)
+  [ "$old" = "$new" ] || echo "РАСХОДИТСЯ: $k"
+done; echo "проверено"
 ```
+
+2. **никто на хосте не читает этот файл** (app-стеки держат свои `.env`):
+
+```bash
+grep -rln 'ai-box-infra/\.env' /var/www --include='*.yml' --include='*.sh' \
+     --include='Makefile' --include='*.conf' 2>/dev/null || echo 'ссылок нет'
+```
+
+Само удаление:
+
+```bash
+cd /var/www/ai-box-infra
+umask 077 && cp -p .env ~/env-backup-doitai-$(date +%F).env
+cmp -s .env ~/env-backup-doitai-$(date +%F).env && echo 'копия побайтно идентична'
+rm .env
+make config && echo 'стек не зависит от плоского .env'
+```
+
+После удаления прогнать **все** пути, которые могли неявно опираться на `.env`
+(docker compose подхватывал его автоматически, поэтому зависимость была
+невидимой):
+
+- `gh workflow run "Deploy doitai.ru"` → полный `git pull && make eco-deploy`;
+- `make nginx-reload` — путь post-deploy руками;
+- путь cron'а — `make certs-renew` целиком: на не-due сертификате это безопасный
+  no-op (`Certificate not yet due for renewal` → `No renewals were attempted`) и
+  затем render+test+reload. **Не** гонять для этого `certbot renew --dry-run` без
+  `--non-interactive`: он подвисает на запросе аккаунта staging'а и держит
+  `/etc/letsencrypt/.certbot.lock`, после чего следующий запуск падает
+  `Another instance of Certbot is already running` (лечится `docker rm -f`
+  залипшего `*-certbot-run-*` и удалением lock-файла в томе);
+- домены снаружи + `make ps`.
 
 ---
 
