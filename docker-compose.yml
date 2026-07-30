@@ -36,6 +36,13 @@ services:
       # включён в самом ai-box). Так добавление голоса не требует новой
       # ОБЯЗАТЕЛЬНОЙ переменной на стендах без voice.
       ASR_WS_UPSTREAM: ${ASR_WS_UPSTREAM:-127.0.0.1:9}
+      # Развилка корневого домена: лендинг (root-landing.conf.template) против
+      # 301 на app (root-redirect.conf.template). Дефолты — заведомо
+      # несуществующие домены: невыбранный vhost рендерится, но не матчится
+      # ничем. Дефолты обязаны быть здесь — envsubst в шаблоне синтаксис
+      # ${VAR:-default} не понимает (тот же приём, что у ASR_WS_UPSTREAM).
+      LANDING_DOMAIN: ${LANDING_DOMAIN:-landing.invalid}
+      ROOT_REDIRECT_DOMAIN: ${ROOT_REDIRECT_DOMAIN:-root-redirect.invalid}
     volumes:
       - ./nginx/templates:/etc/nginx/templates:ro
       - ./nginx/conf.d:/etc/nginx/conf.d
@@ -52,6 +59,10 @@ services:
       # symlink `dist` пер-запрос — свопы релизов долетают без рестарта. Для
       # rsync-in-place (doitai: rsync в реальный dist/) тоже работает.
       - ${APPS_ROOT:-/var/www}/ai-box-front:/var/www/ai-box-front:ro
+      # Лендинг (репозиторий ai-box-site, rsync из CI, сборки нет). На стендах
+      # без лендинга docker создаст пустой каталог — безвредно, vhost там всё
+      # равно не матчится.
+      - ${APPS_ROOT:-/var/www}/ai-box-site:/var/www/ai-box-site:ro
       - ${APPS_ROOT:-/var/www}/ai-box-data-registry:/var/www/ai-box-data-registry:ro
       - ${APPS_ROOT:-/var/www}/ai-box-mcp:/var/www/ai-box-mcp:ro
     networks:

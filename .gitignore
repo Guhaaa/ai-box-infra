@@ -13,10 +13,13 @@ env/*/secrets.env
 docker-compose.override.yml
 
 # Рендер nginx-шаблонов (envsubst из nginx/templates/ при старте контейнера)
-nginx/conf.d/root.conf
+nginx/conf.d/root-landing.conf
+nginx/conf.d/root-redirect.conf
 nginx/conf.d/front.conf
 nginx/conf.d/api.conf
 nginx/conf.d/admin.conf
+# Рендеры тест-зоны (на хостах с активным testzone-override)
+nginx/conf.d/test-*.conf
 
 # Beads / Dolt files (added by bd init)
 .dolt/

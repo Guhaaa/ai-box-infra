@@ -1,0 +1,31 @@
+# ${ROOT_REDIRECT_DOMAIN} — корневой домен стенда БЕЗ лендинга: 301 на
+# ${FRONT_DOMAIN}. Прежний root.conf.template, переехавший на свою переменную.
+#
+# Парный шаблон — root-landing.conf.template. Стенд выбирает поведение тем,
+# какую из двух переменных он задаёт в env/<stend>/config.env; дефолт этой —
+# root-redirect.invalid (docker-compose.yml), т.е. на стенде с лендингом
+# vhost рендерится, но не матчится.
+
+server {
+    listen 80;
+    server_name ${ROOT_REDIRECT_DOMAIN};
+    include snippets/acme.conf;
+    location / {
+        return 301 https://${FRONT_DOMAIN}$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${ROOT_REDIRECT_DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
+    include snippets/ssl.conf;
+
+    access_log /var/log/nginx/root.access.log;
+    error_log  /var/log/nginx/root.error.log;
+
+    return 301 https://${FRONT_DOMAIN}$request_uri;
+}

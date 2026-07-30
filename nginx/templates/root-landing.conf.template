@@ -1,0 +1,55 @@
+# ${LANDING_DOMAIN} — раздача лендинга (репозиторий ai-box-site: статика из
+# Webflow, кладётся rsync'ом из CI в ${APPS_ROOT}/ai-box-site).
+#
+# Развилка корневого домена: этот шаблон рендерится на ВСЕХ стендах, но
+# server_name берётся из LANDING_DOMAIN, чей дефолт (landing.invalid, задан в
+# docker-compose.yml) не совпадает ни с одним реальным запросом. Стенд с
+# лендингом задаёт настоящий домен в env/<stend>/config.env; стенд без лендинга
+# оставляет дефолт и пользуется парным root-redirect.conf.template.
+# ВАЖНО: envsubst образа nginx не понимает ${VAR:-default} — дефолт только в compose.
+
+server {
+    listen 80;
+    server_name ${LANDING_DOMAIN};
+    include snippets/acme.conf;
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${LANDING_DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
+    include snippets/ssl.conf;
+
+    access_log /var/log/nginx/landing.access.log;
+    error_log  /var/log/nginx/landing.error.log;
+
+    root /var/www/ai-box-site;
+    index index.html;
+
+    # Webflow-экспорт: страницы лежат файлами <slug>.html, а ссылки внутри —
+    # без расширения (/pricing-models). Отдаём оба варианта URL.
+    location / {
+        try_files $uri $uri.html $uri/ =404;
+    }
+
+    # Имена ассетов Webflow содержат хеш контента, поэтому immutable безопасен.
+    # HTML под это правило не попадает и длинного кеша не получает — страницы
+    # обновляются сразу после деплоя.
+    location ~* \.(css|js|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|pdf)$ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # Второй рубеж: служебное репозитория на сервер не едет (исключения rsync
+    # в workflow ai-box-site), но если появится — наружу не отдаём.
+    location ~ /\.(ht|env|git|github|claude|idea) { deny all; }
+    location ~* \.md$                             { deny all; }
+    location ^~ /docs/                            { deny all; }
+}
