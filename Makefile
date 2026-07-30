@@ -35,8 +35,16 @@ COMPOSE = docker compose --env-file $(ENVDIR)/config.env \
           $(if $(TESTZONE),--env-file $(TESTZONE),) \
           --env-file $(ENVDIR)/secrets.env
 
-# Домены одного SAN-сертификата (первый задаёт имя lineage = CERT_NAME)
-DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN)
+# Домены одного SAN-сертификата (первый задаёт имя lineage = CERT_NAME).
+# Тест-домены включены осознанно: они уже в живом сертификате doitai.ru, и без
+# них certs-init сузил бы SAN и уронил тест-зону.
+# Через $(if ...), а не голым -d: на стенде без тест-зоны слоя testzone.env нет,
+# переменные пусты, и безусловный -d дал бы certbot пустой аргумент домена.
+DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN) \
+          $(if $(TEST_FRONT_DOMAIN),-d $(TEST_FRONT_DOMAIN),) \
+          $(if $(TEST_API_DOMAIN),-d $(TEST_API_DOMAIN),) \
+          $(if $(TEST_ADMIN_DOMAIN),-d $(TEST_ADMIN_DOMAIN),) \
+          $(if $(TEST_MCP_DOMAIN),-d $(TEST_MCP_DOMAIN),)
 CERT_EMAIL ?= admin@amulex.ru
 
 # Neo4j: плагин GDS ставим сами (пин версии + sha256), НЕ через NEO4J_PLUGINS —
@@ -115,6 +123,7 @@ testzone-sync:
 		cp nginx/templates-test/api.conf.template nginx/templates/test-api.conf.template; \
 		cp nginx/templates-test/admin.conf.template nginx/templates/test-admin.conf.template; \
 		cp nginx/templates-test/internal-test.conf.template nginx/templates/test-internal.conf.template; \
+		cp nginx/templates-test/mcp.conf.template nginx/templates/test-mcp.conf.template; \
 		echo "тест-зона активна: шаблоны пересинхронизированы"; \
 	else \
 		echo "тест-зона не активирована — пересинхронизация не нужна"; \
@@ -141,13 +150,15 @@ certs-init:
 		--non-interactive --agree-tos -m $(CERT_EMAIL) $(DOMAINS)
 
 # Продление на работающем стеке (webroot через nginx) + перечитка сертификата.
-# Повесить в cron хоста: 0 4 * * 1  cd /opt/ai-box-infra && make certs-renew
+# Повесить в cron хоста: 0 4 * * 1  cd /var/www/ai-box-infra && make certs-renew
+# (стенд возьмётся из маркера .stand — STAND= в cron-строке не обязателен).
 certs-renew:
 	$(COMPOSE) run --rm certbot renew --webroot -w /var/www/certbot
 	$(MAKE) nginx-reload
 
 # Self-signed сертификат в volume letsencrypt (локальная разработка/репетиция).
-# SAN — все четыре домена из .env; lineage = CERT_NAME (default ROOT_DOMAIN).
+# SAN — четыре публичных домена стенда из config.env (тест-домены не нужны:
+# self-signed берут только на dev); lineage = CERT_NAME (default ROOT_DOMAIN).
 certs-selfsigned:
 	$(COMPOSE) run --rm --entrypoint sh certbot -c '\
 		CERT=$${CERT_NAME:-$(ROOT_DOMAIN)}; \

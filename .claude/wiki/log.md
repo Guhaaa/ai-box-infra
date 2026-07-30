@@ -108,3 +108,18 @@ env → маркер `./.stand` (некоммитный, в .gitignore) → `loc
 чужие домены. Проверено на пяти режимах (без маркера, маркер с пробелами, env
 поверх маркера, битый маркер, штатный local). Раннбук Фазы 2 обновлён —
 [[decision:env-per-stend]].
+
+## [2026-07-30] ingest | Внешний ingress для раннеров полигона ai-box-mcp
+
+Заведён публичный вхост `mcp.test.doitai.ru` (тест-зона, ветка
+`feat/polygon-runner-ingress`, bead `ai-box-infra-3q9`): единственный
+публичный вход в ai-box-mcp, `location ^~ /api/external/` прямым
+`fastcgi_pass` (без `location ~ \.php$` — control plane `/api/v1` без
+авторизации не должен быть достижим ни при каком regex-обходе),
+`location /` → 404. Доставка шаблона — `make testzone-sync` (проверено
+статически: копия `templates-test/mcp.conf.template` →
+`templates/test-mcp.conf.template` идентична). Заодно починен дрейф
+`DOMAINS` в Makefile — тестовые домены (уже в живом 7-SAN сертификате)
+добавлены явно, иначе `certs-init` сузил бы SAN. Обновлены
+[[entity:nginx-edge]], [[concept:deployment-topologies]]. Реальный
+DNS/сертификат/деплой — вне этой задачи, делает главная сессия.

@@ -2,8 +2,8 @@
 title: Модели размещения и параллельные копии
 type: concept
 tags: [deployment, topology]
-sources: [docs/superpowers/specs/2026-07-03-ecosystem-infra-design.md, docs/runbooks/split-cutover-ai-box.md]
-updated: 2026-07-04
+sources: [docs/superpowers/specs/2026-07-03-ecosystem-infra-design.md, docs/runbooks/split-cutover-ai-box.md, nginx/templates-test/mcp.conf.template]
+updated: 2026-07-30
 ---
 
 # Модели размещения
@@ -44,6 +44,13 @@ updated: 2026-07-04
   `VITE_PROMPT_GENERATOR_MODEL` (генерится per-БД `Str::ulid()`, значение тест-БД
   захардкожено в workflow — при пересеве БД обновить). Условие сева интеграции —
   заданный `SYSTEM_CLIENT_ID` на тест-бэке.
+  Внешний контур раннеров полигона: `mcp.test.doitai.ru` — единственный
+  публичный вход в ai-box-mcp тест-копии, `nginx/templates-test/mcp.conf.template`
+  светит наружу строго `location ^~ /api/external/` (прямой `fastcgi_pass`,
+  без `location ~ \.php$` — control plane `/api/v1` без авторизации не должен
+  быть достижим ни при каком regex-обходе), `location /` → 404. Подробности и
+  обоснование — [[entity:nginx-edge]]. `TEST_MCP_DOMAIN` живёт в слое
+  `env/doitai/testzone.env` (обязательная `:?`-переменная testzone-compose).
 - **doitai.ru** (развёрнут 2026-07-04): вторая копия, **сплит** — Ollama и
   pdn-cleaner внешние (`192.168.101.114`, приватная связность с VM есть,
   проверена): в облаке тикет на добавление GPU; при появлении железа —
@@ -79,6 +86,12 @@ config → (условно) testzone → secrets и мержит через `doc
 ## Связи
 
 - [[entity:shared-stack]]
+- [[entity:nginx-edge]]
 - [[concept:contracts]]
 - [[integration:gpu-services]]
 - [[decision:env-per-stend]]
+
+## Связанные Beads
+
+- [[bead:ai-box-infra-3q9]] — публичный вхост `mcp.test.doitai.ru`.
+- [[bead:ai-box-infra-11l]] — env по стендам, маркер `.stand`.

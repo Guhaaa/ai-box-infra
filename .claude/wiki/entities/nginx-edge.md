@@ -2,8 +2,8 @@
 title: Nginx-вход — шаблоны, TLS, внутренние vhost'ы
 type: entity
 tags: [nginx, tls, routing]
-sources: [nginx/templates, nginx/conf.d, nginx/snippets, Makefile]
-updated: 2026-07-23
+sources: [nginx/templates, nginx/templates-test, nginx/conf.d, nginx/snippets, Makefile]
+updated: 2026-07-30
 ---
 
 # Nginx-вход
@@ -28,7 +28,37 @@ TLS: один SAN-сертификат на 4 домена, lineage = `CERT_NAME
 
 `nginx/conf.d/internal-*.conf`, доступны только с сети `ecosystem` по
 alias `gateway`: 8083 → data-registry, 8084 → MCP, 8085 → ai-box
-(межсервисные вызовы, например MCP→ai-box).
+(межсервисные вызовы, например MCP→ai-box). В тест-зоне то же самое —
+`test-internal.conf` на портах 8183/8184/8185.
+
+## Внешний контур раннеров полигона (тест-зона) — `mcp.test.doitai.ru`
+
+`nginx/templates-test/mcp.conf.template` — единственный публичный вход в
+ai-box-mcp тест-копии. Он НЕ дублирует раскладку `api.conf` (весь `/api/*` на
+try_files + php-локация): здесь наружу светят ровно три ручки раннера,
+`/api/v1` того же приложения — control plane без авторизации совсем
+(доверенная сеть, `concepts/trusted-network` в репозитории ai-box-mcp).
+
+- `location ^~ /api/external/` — прямой `fastcgi_pass`, БЕЗ прохода через
+  `try_files`; `SCRIPT_FILENAME`/`SCRIPT_NAME` переопределены явно (вне
+  `.php`-локации `$fastcgi_script_name` = `$uri`, иначе php-fpm ответит
+  «File not found» — тот же приём, что в `api.conf` для `/internal/asr-authorize`).
+- В шаблоне сознательно НЕТ `location ~ \.php$`: такая regex-локация имеет
+  приоритет над `location /` и открыла бы путь `/что-угодно.php` в php-fpm
+  в обход `return 404`, включая теоретический доступ к `/api/v1/*.php`-подобным
+  путям. Раз php вызывается только из `^~ /api/external/`, отдельная
+  `location ~ /\.(ht|env|git)` тоже не нужна — всё остальное закрывает
+  `location /` → 404.
+- Доставка шаблона в nginx — той же цепочкой, что у прочих тест-vhost'ов:
+  `make testzone-sync` копирует `templates-test/mcp.conf.template` →
+  `templates/test-mcp.conf.template` (иначе правка не доезжает до
+  `envsubst`, см. [[decision:nginx-template-rendering]]).
+- `TEST_MCP_DOMAIN` — обязательная переменная nginx (`:?` в
+  `docker-compose.testzone.yml`); без неё `server_name` рендерится пустым и
+  `nginx -t` роняет весь деплой тест-зоны.
+- Риск на будущее: имя `mcp.*` читается как «весь MCP», что может однажды
+  спровоцировать дописать туда `location /api/v1` — единственная страховка
+  сейчас — предупреждающий комментарий в самом шаблоне.
 
 ## Ключевые решения
 
@@ -50,4 +80,10 @@ alias `gateway`: 8083 → data-registry, 8084 → MCP, 8085 → ai-box
 
 - [[entity:shared-stack]]
 - [[concept:contracts]]
+- [[concept:deployment-topologies]]
 - [[decision:voice-dictation]]
+- [[decision:nginx-template-rendering]]
+
+## Связанные Beads
+
+- [[bead:ai-box-infra-3q9]] — публичный вхост `mcp.test.doitai.ru`.
