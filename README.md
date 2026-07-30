@@ -71,15 +71,40 @@ OLLAMA_URL=http://ollama-router:11434           # (или http://172.30.0.1:1143
 | резерв | 7 | — |
 
 **Базы MariaDB**: `ai_box`, `ai_box_dr`, `ai_box_mcp` — создаются при первой
-инициализации volume (`mariadb/initdb/01-apps.sh`), пароли из `.env` стека.
+инициализации volume (`mariadb/initdb/01-apps.sh`), пароли из
+`env/<stend>/secrets.env`.
+
+## Конфигурация: стенды (env-per-stend)
+
+Плоского `.env` больше нет. Конфиг каждой копии стека — каталог стенда:
+
+| Файл | Что | В git |
+|---|---|---|
+| `env/<stend>/config.env` | несекретное: домены, `APPS_ROOT`, подсеть, версии, тюнинг | да |
+| `env/<stend>/testzone.env` | overlay тест-зоны (только стенд с тест-зоной) | да |
+| `env/<stend>/secrets.env` | пароли БД/Redis/Neo4j, токен browserless | **нет**, chmod 600 на хосте |
+| `env/example/*` | шаблоны с перечнем и описанием всех ключей | да |
+
+Стенд выбирается по приоритету: переменная `STAND` → некоммитный маркер
+`./.stand` (одна строка с именем стенда) → `local`. Маркер объявляет стенд на
+хосте раз и навсегда — иначе вызов без `STAND=` (cron, CI, руки в ssh) взял бы
+конфиг dev-машины. Незнакомый стенд валит `make` сразу. Проверка стенда и
+интерполяции: `make config` — печатает `[stand] …` и молча валидирует рендер
+(ненулевой код = потерянный ключ). Trade-off'ы —
+[decisions/env-per-stend.md](.claude/wiki/decisions/env-per-stend.md), боевая
+миграция стендов — [runbook](docs/runbooks/env-per-stend-migration.md).
 
 ## Развёртывание пустого сервера
 
 ```bash
 # 0. Docker + git (+ NVIDIA Container Toolkit — нужен pdn-cleaner'у);
 #    клонировать репозитории приложений в ${APPS_ROOT}
-# 1. Настроить стек
-cp .env.example .env && $EDITOR .env
+# 1. Объявить стенд и настроить слои env
+echo <stend> > .stand                          # local | doitai | amulex | новый
+$EDITOR env/<stend>/config.env                 # новый стенд — с env/example/config.env
+cp env/example/secrets.env env/<stend>/secrets.env
+chmod 600 env/<stend>/secrets.env && $EDITOR env/<stend>/secrets.env
+make config                                    # exit 0 = все ключи на месте
 # 2. Собрать базовый PHP-образ (нужен приложениям до их старта)
 make build-base
 # 3. Получить сертификат (до первого запуска nginx, порт 80 свободен)
@@ -87,9 +112,14 @@ make certs-init
 # 4. Поднять shared-стек (создаст сеть ecosystem)
 make up
 # 5. Поднять стеки приложений в их репозиториях
-# 6. Продление сертификатов — в cron хоста:
-#    0 4 * * 1  cd /opt/ai-box-infra && make certs-renew
+# 6. Продление сертификатов — в cron хоста (стенд возьмётся из маркера):
+#    0 4 * * 1  cd /var/www/ai-box-infra && make certs-renew
 ```
+
+Штатный деплой на стенде — `make eco-deploy` (build-base + up + идемпотентный
+`deploy/post-deploy.sh`, который перерендеривает шаблоны nginx и перечитывает
+конфиг). Секреты генерить `openssl rand -hex 24`; символы `#` и `$` в значениях
+недопустимы — ломают `-include` в make.
 
 Миграция данных со старого прода (MariaDB-дампы → `make db-import`, volume
 Qdrant, storage/ приложений, ollama-модели; Redis не переносится) — по
@@ -116,10 +146,11 @@ Qdrant, storage/ приложений, ollama-модели; Redis не пере�
 Раскладка: `app.` — фронт SPA, `api.` — API, `admin.` — админка Filament,
 корневой домен — пока редирект на `app.` (шаблон `root.conf.template`;
 появится лендинг — заменить на раздачу статики). Домены копии задаются в
-`.env` (`ROOT_DOMAIN`/`FRONT_DOMAIN`/`API_DOMAIN`/`ADMIN_DOMAIN`,
+`env/<stend>/config.env` (`ROOT_DOMAIN`/`FRONT_DOMAIN`/`API_DOMAIN`/`ADMIN_DOMAIN`,
 опционально `CERT_NAME`, по умолчанию = ROOT_DOMAIN) — публичные vhost'ы
 рендерятся из `nginx/templates/*.template` при старте контейнера nginx,
-сертификат один с SAN на все четыре домена.
+сертификат один с SAN на все домены стенда (`DOMAINS` в Makefile: четыре
+публичных + домены тест-зоны, если её слой подключён).
 
 Порядок важен: сначала shared-стек (сеть, БД), затем приложения. nginx
 переживает отсутствие/рестарт приложений — upstream'ы резолвятся на лету.
@@ -130,12 +161,23 @@ Dev-окружение живёт на этой же схеме (перевед�
 
 ```bash
 make build-base-dev            # база + вариант с xdebug (aibox/php-base:8.3-dev)
-cp .env.example .env           # домены *.ai-box.local, свободная подсеть
-                               # (ECOSYSTEM_SUBNET!), QDRANT_VERSION
+echo local > .stand            # стенд dev-машины (env/local/config.env — в git:
+                               # домены *.ai-box.local, свободная подсеть, версии)
+cp env/example/secrets.env env/local/secrets.env   # dev-dummy пароли
+chmod 600 env/local/secrets.env && $EDITOR env/local/secrets.env
+# dev-оверлей (ремап портов: nginx 8090, mariadb 3310, neo4j на loopback) —
+# симлинком, чтобы его подхватывали ВСЕ make-цели, а не только ручной вызов:
+ln -sf docker-compose.local.yml docker-compose.override.yml
+make config                    # exit 0 + [stand] local
 make certs-selfsigned          # self-signed SAN-серт в volume letsencrypt
-docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+make up
 # /etc/hosts: 127.0.0.1 ai-box.local app.ai-box.local api.… admin.…
 ```
+
+Без симлинка `docker-compose.override.yml` цели `make` работают с боевыми
+портами (80/443, 3306) — оверлей нужно было бы передавать руками каждый раз:
+`docker compose --env-file env/local/config.env --env-file env/local/secrets.env
+-f docker-compose.yml -f docker-compose.local.yml up -d`.
 
 В `.env` каждого приложения — dev-переопределения eco-стека:
 `PHP_BASE_IMAGE=aibox/php-base:8.3-dev`, `PHP_INI=./php/local.ini`,

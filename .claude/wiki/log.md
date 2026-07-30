@@ -72,3 +72,71 @@ nginx-reload = рендер → nginx -t → reload. Детали и trade-off'�
 сервис `neo4j` (5.26.28-community) на `ecosystem` рядом с qdrant, GDS 2.13.4
 ставим сами идемпотентным `make neo4j-plugins` (пин+sha256, не NEO4J_PLUGINS —
 снят egress со старта контейнера). Trade-off'ы и пины — [[decision:neo4j-graph-store]].
+
+## [2026-07-27] ingest | env-per-stend: STAND-слои env/<stend>, выпил плоского .env, eco-deploy hook
+
+Эталон на infra (bead ai-box-infra-11l, Фаза 1 на ветке feat/env-per-stend, не
+пушено). Несекретный конфиг стендов — в git (`env/{local,doitai,amulex}/config.env`
++ `env/example/*`), секреты — некоммитный `env/<stend>/secrets.env`. Стенд — `STAND`
+(дефолт local), Makefile слоями подключает config→testzone→secrets и мержит через
+`docker compose --env-file`. Плоский `.env` выпилен (проверено `make config` без
+него). Пост-деплой — `deploy/post-deploy.sh` + цель `eco-deploy`, workflow doitai
+переведён на `STAND=doitai make eco-deploy`. Боевая миграция серверов + пуш — Фаза 2
+(runbook + разрешение). Trade-off'ы — [[decision:env-per-stend]].
+
+## [2026-07-30] ingest | Раннбук боевой миграции env-per-stend (Фаза 2)
+
+`docs/runbooks/env-per-stend-migration.md` (bead ai-box-infra-11l): гейт перед
+мержем в master (мерж = автодеплой doitai), механический diff ключей живого
+`.env` ↔ слои `env/<stend>/*`, `secrets.env` на сервере (7 ключей, chmod 600),
+прогон `STAND=doitai make config` во временном worktree (деплойный клон ветку не
+переключает — workflow тянет master в текущую), инвентарь вызовов `make` из
+cron/Jenkins (без `STAND` берётся стенд `local`), постпроверки и выпил плоского
+`.env` после контрольного срока. Названы тихие ключи-с-дефолтом (`QDRANT_VERSION`
+— даунгрейд storage, `ASR_WS_UPSTREAM` — заглушка 127.0.0.1:9, `ECOSYSTEM_SUBNET`)
+и порядок мержа с `feat/polygon-runner-ingress` (конфликт Makefile/.env.example,
+обязательный `TEST_MCP_DOMAIN`). Пробелы — [[decision:env-per-stend]].
+
+## [2026-07-30] ingest | Маркер стенда .stand + громкая ошибка на незнакомом стенде
+
+Закрыт пробел env-per-stend: `STAND ?= $(strip $(shell cat .stand …))` — приоритет
+env → маркер `./.stand` (некоммитный, в .gitignore) → `local`. Незнакомый стенд
+валит `make` сразу `$(error)`-ом вместо невнятного вороха `:?` от compose,
+`make config` печатает `[stand] <стенд> (env/<стенд> [+ testzone])`. Мотив: вызовы
+`make` из cron (`certs-renew`)/Jenkins/ssh на боевом хосте больше не зависят от
+того, вспомнил ли человек `STAND=` — иначе брался конфиг dev-машины и рендерились
+чужие домены. Проверено на пяти режимах (без маркера, маркер с пробелами, env
+поверх маркера, битый маркер, штатный local). Раннбук Фазы 2 обновлён —
+[[decision:env-per-stend]].
+
+## [2026-07-30] ingest | Внешний ingress для раннеров полигона ai-box-mcp
+
+Заведён публичный вхост `mcp.test.doitai.ru` (тест-зона, ветка
+`feat/polygon-runner-ingress`, bead `ai-box-infra-3q9`): единственный
+публичный вход в ai-box-mcp, `location ^~ /api/external/` прямым
+`fastcgi_pass` (без `location ~ \.php$` — control plane `/api/v1` без
+авторизации не должен быть достижим ни при каком regex-обходе),
+`location /` → 404. Доставка шаблона — `make testzone-sync` (проверено
+статически: копия `templates-test/mcp.conf.template` →
+`templates/test-mcp.conf.template` идентична). Заодно починен дрейф
+`DOMAINS` в Makefile — тестовые домены (уже в живом 7-SAN сертификате)
+добавлены явно, иначе `certs-init` сузил бы SAN. Обновлены
+[[entity:nginx-edge]], [[concept:deployment-topologies]]. Реальный
+DNS/сертификат/деплой — вне этой задачи, делает главная сессия.
+
+## [2026-07-30] ingest | Сведение env-per-stend с ветку полигона + README/certs-expand
+
+Ветка `feat/polygon-runner-ingress` (bead ai-box-infra-3q9) влита в
+`feat/env-per-stend` — в master уезжают одним гейтом. Разведено: Makefile (слои
+env-per-stend + `DOMAINS` с тест-SAN через `$(if …)`; проверено — doitai 8 `-d`,
+amulex 4, пустых `-d` нет), `TEST_MCP_DOMAIN` переехал из плоского `.env` в
+`env/doitai/testzone.env`, добавлен шаблон `env/example/testzone.env`,
+`.env.example` удалён как мёртвый дубль. README переписан под стенды (раскладка
+файлов, приоритет STAND → .stand → local, dev через симлинк
+`docker-compose.override.yml`, который теперь в .gitignore). Новая цель
+`certs-expand`: `certbot renew` SAN НЕ расширяет, поэтому домен, добавленный в
+`DOMAINS`, без неё в сертификат не попадал бы (тихая поломка — nginx стартует и
+`nginx -t` проходит, серт отдаётся с чужим именем). Раннбук Фазы 2 стал общим
+гейтом на две задачи: A-запись `mcp.test.doitai.ru` → мерж → `certs-expand` →
+приёмка внешнего контура (401/404/404). Страницы — [[decision:env-per-stend]],
+[[entity:shared-stack]], [[concept:deployment-topologies]], [[entity:nginx-edge]].

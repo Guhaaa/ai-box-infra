@@ -3,7 +3,7 @@ title: Shared-стек — сервисы и overlay-файлы
 type: entity
 tags: [docker, compose, infrastructure]
 sources: [docker-compose.yml, docker-compose.transition.yml, docker-compose.local.yml, Makefile, mariadb/initdb/01-apps.sh]
-updated: 2026-07-25
+updated: 2026-07-30
 ---
 
 # Shared-стек
@@ -49,16 +49,23 @@ updated: 2026-07-25
 - **opcache** (приложения): уже оптимален (JIT, validate_timestamps=0,
   128M); сброс при деплое покрыт `restart php` в eco-deploy.
 
-Env под RAM хоста (задать в `.env` каждого сервера): `MARIADB_BUFFER_POOL`
-(~50-70% RAM под БД), `REDIS_MAXMEMORY` (граница против OOM), `NEO4J_HEAP` и
-`NEO4J_PAGECACHE` (heap+pagecache Neo4j, дефолт по 512m).
+Env под RAM хоста (задать в `env/<stend>/config.env` каждого сервера):
+`MARIADB_BUFFER_POOL` (~50-70% RAM под БД), `REDIS_MAXMEMORY` (граница против
+OOM), `NEO4J_HEAP` и `NEO4J_PAGECACHE` (heap+pagecache Neo4j, дефолт по 512m).
 
 ## Makefile
 
-`up/down/logs`, `build-base`/`build-base-dev`, `certs-init` (standalone до
-первого nginx), `certs-renew` (webroot + reload, в cron), `certs-selfsigned`
-(dev), `db-import DB=… FILE=…`, `mariadb-cli`/`redis-cli`. Makefile читает
-`.env` (домены, пароли).
+`up/down/logs`, `config` (валидация интерполяции + печать стенда),
+`eco-deploy` (build-base + up + `deploy/post-deploy.sh`),
+`build-base`/`build-base-dev`, `certs-init` (standalone до первого nginx),
+`certs-expand` (`--expand` нового SAN на живом стеке — `renew` список SAN не
+меняет), `certs-renew` (webroot + reload, в cron), `certs-selfsigned` (dev),
+`testzone-enable`/`testzone-sync`, `nginx-render`/`nginx-test`/`nginx-reload`,
+`db-import DB=… FILE=…`, `mariadb-cli`/`redis-cli`, `neo4j-*`.
+
+Env Makefile берёт слоями из `env/$(STAND)/` (`config.env` → условно
+`testzone.env` → `secrets.env`); стенд — `STAND` → маркер `./.stand` → `local`,
+подробности в [[decision:env-per-stend]].
 
 ## Связи
 

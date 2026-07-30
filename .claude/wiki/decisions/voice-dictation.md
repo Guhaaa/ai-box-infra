@@ -2,8 +2,8 @@
 title: Проксирование потока голосовой диктовки (ASR ws-stream + auth_request)
 type: decision
 tags: [nginx, asr, websocket, auth, voice]
-sources: [nginx/templates/api.conf.template, nginx/templates-test/api.conf.template, docker-compose.yml, .env.example]
-updated: 2026-07-23
+sources: [nginx/templates/api.conf.template, nginx/templates-test/api.conf.template, docker-compose.yml, env/example/config.env]
+updated: 2026-07-30
 ---
 
 # Проксирование потока голосовой диктовки
@@ -60,8 +60,8 @@ updated: 2026-07-23
 обязательная переменная сделала бы новую голосовую фичу поводом падать nginx на
 стендах, где голос не используется. Локация реально активна лишь после успешного
 `auth_request` (т.е. когда `asr.enabled` в самом ai-box), поэтому инертный
-адрес безвреден. Стенд с голосом задаёт реальный адрес в `.env`
-(doitai — выделенный GPU-бокс в LAN).
+адрес безвреден. Стенд с голосом задаёт реальный адрес в
+`env/<stend>/config.env` (doitai — выделенный GPU-бокс в LAN).
 
 ## Наш репозиторий: два исходника, не три
 
@@ -113,21 +113,24 @@ updated: 2026-07-23
 на обеих поверхностях
 (`/api/assistant/...` и `/api/i/{integration}/...`) с валидным 26-символьным
 ULID; 403 (а не 500) подтверждает, что роут `/api/internal/asr/authorize` в
-ai-box существует и активно отказывает. Env-per-stend (спека
-`docs/superpowers/specs/2026-07-08-env-per-stend-design.md`, bead
-`ai-box-infra-11l` — ещё не построен): пока `ASR_WS_UPSTREAM` живёт в плоском
-`.env`; когда доедет — переедет в `env/<stend>/config.env`.
+ai-box существует и активно отказывает. Дом `ASR_WS_UPSTREAM` — слой
+`env/<stend>/config.env` ([[decision:env-per-stend]], bead `ai-box-infra-11l`);
+на боевых серверах ключ пока лежит в плоском `.env` и **обязан быть перенесён
+руками** при миграции стенда: незаданный даёт инертный дефолт `127.0.0.1:9` —
+локация есть, апстрим мёртв, диктовка молча не работает (шаг сверки ключей в
+`docs/runbooks/env-per-stend-migration.md`).
 
 ## Связи
 
 - [[entity:nginx-edge]]
 - [[concept:contracts]]
 - [[integration:app-stacks]]
+- [[decision:env-per-stend]]
 
 ## Связанные Beads
 
 - [[bead:ai-box-infra-0fq]] — эта задача (перенос nginx-локаций из брифа ai-box).
-- [[bead:ai-box-infra-11l]] — env-per-stend; будущий дом для `ASR_WS_UPSTREAM`.
+- [[bead:ai-box-infra-11l]] — env-per-stend; дом для `ASR_WS_UPSTREAM`.
 
 ## Источники
 

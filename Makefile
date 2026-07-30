@@ -1,14 +1,50 @@
 # Управление shared-стеком экосистемы AiBox.
 # Все команды выполняются на сервере из корня этого репозитория.
 
-COMPOSE = docker compose
+# Стенд этой копии infra: local | doitai | amulex. Несекретный конфиг + секреты —
+# из env/$(STAND)/. Плоский .env выпилен — .claude/wiki/decisions/env-per-stend.md.
+#
+# Приоритет: env-переменная STAND → маркер ./.stand → local. Маркер (некоммитный,
+# одна строка с именем стенда) объявляет стенд НА ХОСТЕ раз и навсегда: иначе
+# любой вызов без STAND= (cron certs-renew, Jenkins, руки в ssh) молча брал бы
+# конфиг dev-машины и рендерил чужие домены на боевом стенде.
+STAND    ?= $(strip $(shell cat .stand 2>/dev/null || echo local))
+ENVDIR   := env/$(STAND)
 
-# Домены и пароли — из .env этой копии
--include .env
+# Незнакомый стенд обязан падать громко и сразу: без config.env слои просто
+# не подключатся (-include молчит), и ошибка вылезла бы позже — невнятным
+# ворохом ':?' от compose.
+ifeq ($(wildcard $(ENVDIR)/config.env),)
+$(error стенд '$(STAND)' неизвестен: нет $(ENVDIR)/config.env. Задай STAND=<стенд>, поправь маркер .stand или создай слои по env/example/)
+endif
+
+# testzone.env — условный overlay-слой: подключается, только если есть в каталоге
+# стенда (=doitai). Тот же признак, что и активный testzone-override.
+TESTZONE := $(wildcard $(ENVDIR)/testzone.env)
+
+# Значения — и для make-целей (db-import/mariadb-cli/certs-*), и для интерполяции
+# ${VAR} в compose. Порядок: config → (testzone) → secrets (секреты поверх).
+-include $(ENVDIR)/config.env
+-include $(TESTZONE)
+-include $(ENVDIR)/secrets.env
 export
 
-# Домены одного SAN-сертификата (первый задаёт имя lineage = CERT_NAME)
-DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN)
+# docker compose --env-file можно указать несколько раз: файлы мержатся,
+# последний перекрывает. testzone-слой подключается только когда файл есть.
+COMPOSE = docker compose --env-file $(ENVDIR)/config.env \
+          $(if $(TESTZONE),--env-file $(TESTZONE),) \
+          --env-file $(ENVDIR)/secrets.env
+
+# Домены одного SAN-сертификата (первый задаёт имя lineage = CERT_NAME).
+# Тест-домены включены осознанно: они уже в живом сертификате doitai.ru, и без
+# них certs-init сузил бы SAN и уронил тест-зону.
+# Через $(if ...), а не голым -d: на стенде без тест-зоны слоя testzone.env нет,
+# переменные пусты, и безусловный -d дал бы certbot пустой аргумент домена.
+DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN) \
+          $(if $(TEST_FRONT_DOMAIN),-d $(TEST_FRONT_DOMAIN),) \
+          $(if $(TEST_API_DOMAIN),-d $(TEST_API_DOMAIN),) \
+          $(if $(TEST_ADMIN_DOMAIN),-d $(TEST_ADMIN_DOMAIN),) \
+          $(if $(TEST_MCP_DOMAIN),-d $(TEST_MCP_DOMAIN),)
 CERT_EMAIL ?= admin@amulex.ru
 
 # Neo4j: плагин GDS ставим сами (пин версии + sha256), НЕ через NEO4J_PLUGINS —
@@ -21,13 +57,19 @@ NEO4J_PLUGINS_DIR := neo4j/plugins
 NEO4J_GDS_JAR     := $(NEO4J_PLUGINS_DIR)/neo4j-graph-data-science-$(NEO4J_GDS_VERSION).jar
 
 .PHONY: up down restart ps logs build-base build-base-dev testzone-enable testzone-sync mariadb-cli redis-cli \
-        certs-init certs-renew certs-selfsigned nginx-reload nginx-render nginx-test db-import \
-        neo4j-plugins neo4j-cli neo4j-smoke neo4j-dump neo4j-restore
+        certs-init certs-expand certs-renew certs-selfsigned nginx-reload nginx-render nginx-test db-import \
+        neo4j-plugins neo4j-cli neo4j-smoke neo4j-dump neo4j-restore config eco-deploy
 
 # neo4j-plugins — предшаг: host-каталог neo4j/plugins должен быть пополнён
 # до старта контейнера neo4j (иначе GDS не загрузится, поймает neo4j-smoke).
 up: neo4j-plugins
 	$(COMPOSE) up -d
+
+# Экосистемный деплой: собрать базовый образ, поднять стек, прогнать идемпотентный
+# пост-деплой hook. STAND экспортируется выше — post-deploy.sh его видит.
+# Заменяет ручную связку build-base + up + nginx-reload в CI.
+eco-deploy: build-base up
+	./deploy/post-deploy.sh
 
 down:
 	$(COMPOSE) down
@@ -37,6 +79,13 @@ restart:
 
 ps:
 	$(COMPOSE) ps
+
+# Валидация интерполяции env текущего стенда: рендерит и молча проверяет.
+# Ненулевой код = незаполненная/потерянная переменная. Печатает выбранный стенд —
+# главная проверка перед боевой командой (не тот стенд = чужие домены).
+config:
+	@echo "[stand] $(STAND) ($(ENVDIR)$(if $(TESTZONE), + testzone,))"
+	$(COMPOSE) config --quiet
 
 logs:
 	$(COMPOSE) logs -f --tail=200
@@ -74,6 +123,7 @@ testzone-sync:
 		cp nginx/templates-test/api.conf.template nginx/templates/test-api.conf.template; \
 		cp nginx/templates-test/admin.conf.template nginx/templates/test-admin.conf.template; \
 		cp nginx/templates-test/internal-test.conf.template nginx/templates/test-internal.conf.template; \
+		cp nginx/templates-test/mcp.conf.template nginx/templates/test-mcp.conf.template; \
 		echo "тест-зона активна: шаблоны пересинхронизированы"; \
 	else \
 		echo "тест-зона не активирована — пересинхронизация не нужна"; \
@@ -99,14 +149,26 @@ certs-init:
 	$(COMPOSE) run --rm -p 80:80 certbot certonly --standalone \
 		--non-interactive --agree-tos -m $(CERT_EMAIL) $(DOMAINS)
 
+# Расширение SAN существующего lineage (добавили домен в config/testzone-слой).
+# ОБЯЗАТЕЛЬНО отдельной целью: `certbot renew` перевыпускает СТАРЫЙ список SAN и
+# новый домен сам не подхватит — vhost отдавал бы серт с чужим именем. Работает
+# на живом стеке (webroot через nginx), в отличие от standalone certs-init.
+certs-expand:
+	$(COMPOSE) run --rm certbot certonly --webroot -w /var/www/certbot \
+		--non-interactive --agree-tos -m $(CERT_EMAIL) --expand \
+		--cert-name $(if $(CERT_NAME),$(CERT_NAME),$(ROOT_DOMAIN)) $(DOMAINS)
+	$(MAKE) nginx-reload
+
 # Продление на работающем стеке (webroot через nginx) + перечитка сертификата.
-# Повесить в cron хоста: 0 4 * * 1  cd /opt/ai-box-infra && make certs-renew
+# Повесить в cron хоста: 0 4 * * 1  cd /var/www/ai-box-infra && make certs-renew
+# (стенд возьмётся из маркера .stand — STAND= в cron-строке не обязателен).
 certs-renew:
 	$(COMPOSE) run --rm certbot renew --webroot -w /var/www/certbot
 	$(MAKE) nginx-reload
 
 # Self-signed сертификат в volume letsencrypt (локальная разработка/репетиция).
-# SAN — все четыре домена из .env; lineage = CERT_NAME (default ROOT_DOMAIN).
+# SAN — четыре публичных домена стенда из config.env (тест-домены не нужны:
+# self-signed берут только на dev); lineage = CERT_NAME (default ROOT_DOMAIN).
 certs-selfsigned:
 	$(COMPOSE) run --rm --entrypoint sh certbot -c '\
 		CERT=$${CERT_NAME:-$(ROOT_DOMAIN)}; \

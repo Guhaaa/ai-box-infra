@@ -3,7 +3,7 @@ title: GPU-сервисы — ollama-router и pdn-cleaner
 type: integration
 tags: [gpu, ollama, pdn, split]
 sources: [README.md, docs/superpowers/specs/2026-07-03-ecosystem-infra-design.md]
-updated: 2026-07-05
+updated: 2026-07-07
 ---
 
 # GPU-сервисы
@@ -58,6 +58,22 @@ VRAM на длинных. nvidia-persistenced (systemd, хостовый) дер
 - pdn GPU-образ (полный cu124-стек: cudnn/cublas/triton) тяжёл для сборки
   (пик ~25G из-за дублирования uv-кэша) → `UV_NO_CACHE=1` в Dockerfile;
   диск sdb расширен до 50G (hot-resize online).
+
+**Инцидент 2026-07-07 — смена UUID карты (обе GPU-службы легли).** После
+переустановки/переинициализации драйвера UUID RTX 2080 Ti сменился
+(`GPU-f7c429ab-…` → `GPU-85bdf115-…`). Оба GPU-контейнера прибиты по UUID
+(ollama-gpu0: `GPU0_UUID` в `ollama-router/.env`; pdn: `GPU_ID` в
+`ai-box-pdn-cleaner/.env`) → с 2026-07-05 падали `Exited(128)`:
+`nvidia-container-cli: device error: GPU-<old>: unknown device`. Следствие:
+пул ollama-router пуст (`enforceReplicas: no candidate`), `/api/tags` пуст,
+503 на `/api/pull`, титлер/эмбеддинги/маскирование ПДн не работали (OpenAI-модели
+не затронуты). Фикс: `nvidia-smi -L` → новый UUID в оба `.env`; `docker rm -f` +
+пересоздать сервис. **Важно:** передавать `--env-file ../.env` (иначе нет
+`ROUTER_BIND` и т.п.) и **правильный `-p <project>`**, иначе compose уводит
+контейнер в чужую pool-сеть и роутер не резолвит ноду. NB: работающий
+ollama-стек фактически поднят под проектом `docker` (сеть `docker_pool`), а не
+под задуманным `ollama_router` — пересоздание ноды делать `-p docker`, пока
+стек не переунифицирован. Разбор — [[bead:map-ai-box-infra]], `bd memories gpu-uuid`.
 
 В прод-сплите (addons) GPU-сервисы работают по-старому на LAN-хосте
 `192.168.101.114`:
