@@ -74,6 +74,7 @@ testzone-sync:
 		cp nginx/templates-test/api.conf.template nginx/templates/test-api.conf.template; \
 		cp nginx/templates-test/admin.conf.template nginx/templates/test-admin.conf.template; \
 		cp nginx/templates-test/internal-test.conf.template nginx/templates/test-internal.conf.template; \
+		cp nginx/templates-test/mcp.conf.template nginx/templates/test-mcp.conf.template; \
 		echo "тест-зона активна: шаблоны пересинхронизированы"; \
 	else \
 		echo "тест-зона не активирована — пересинхронизация не нужна"; \
