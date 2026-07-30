@@ -8,11 +8,15 @@ COMPOSE = docker compose
 export
 
 # Домены одного SAN-сертификата (первый задаёт имя lineage = CERT_NAME).
-# Тест-домены включены сюда осознанно: они уже в живом сертификате, и без них
-# certs-init сузил бы SAN и уронил тест-зону.
+# Тест-домены включены осознанно: они уже в живом сертификате doitai.ru, и без
+# них certs-init сузил бы SAN и уронил тест-зону.
+# Через $(if ...), а не голым -d: на стенде без тест-зоны переменные пусты, и
+# безусловный -d дал бы certbot пустой аргумент домена.
 DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN) \
-          -d $(TEST_FRONT_DOMAIN) -d $(TEST_API_DOMAIN) -d $(TEST_ADMIN_DOMAIN) \
-          -d $(TEST_MCP_DOMAIN)
+          $(if $(TEST_FRONT_DOMAIN),-d $(TEST_FRONT_DOMAIN),) \
+          $(if $(TEST_API_DOMAIN),-d $(TEST_API_DOMAIN),) \
+          $(if $(TEST_ADMIN_DOMAIN),-d $(TEST_ADMIN_DOMAIN),) \
+          $(if $(TEST_MCP_DOMAIN),-d $(TEST_MCP_DOMAIN),)
 CERT_EMAIL ?= admin@amulex.ru
 
 # Neo4j: плагин GDS ставим сами (пин версии + sha256), НЕ через NEO4J_PLUGINS —
