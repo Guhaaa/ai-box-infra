@@ -2,8 +2,8 @@
 title: Модели размещения и параллельные копии
 type: concept
 tags: [deployment, topology]
-sources: [docs/superpowers/specs/2026-07-03-ecosystem-infra-design.md, docs/runbooks/split-cutover-ai-box.md]
-updated: 2026-07-04
+sources: [docs/superpowers/specs/2026-07-03-ecosystem-infra-design.md, docs/runbooks/split-cutover-ai-box.md, nginx/templates-test/mcp.conf.template]
+updated: 2026-07-30
 ---
 
 # Модели размещения
@@ -37,6 +37,12 @@ updated: 2026-07-04
   8183/8184/8185. Тест ai-box ходит в ТЕСТ DR/MCP (не общие), MCP — в тест
   ai-box (8185). Общие с prod-копией: infra-стек, Qdrant, GPU (ollama/pdn).
   Деплой: GitHub Actions push в develop → deploy-doitai-test.yml (все app-репо).
+  Внешний контур раннеров полигона: `mcp.test.doitai.ru` — единственный
+  публичный вход в ai-box-mcp тест-копии, `nginx/templates-test/mcp.conf.template`
+  светит наружу строго `location ^~ /api/external/` (прямой `fastcgi_pass`,
+  без `location ~ \.php$` — control plane `/api/v1` без авторизации не должен
+  быть достижим ни при каком regex-обходе), `location /` → 404. Подробности и
+  обоснование — [[entity:nginx-edge]].
 - **doitai.ru** (развёрнут 2026-07-04): вторая копия, **сплит** — Ollama и
   pdn-cleaner внешние (`192.168.101.114`, приватная связность с VM есть,
   проверена): в облаке тикет на добавление GPU; при появлении железа —
@@ -62,5 +68,10 @@ updated: 2026-07-04
 ## Связи
 
 - [[entity:shared-stack]]
+- [[entity:nginx-edge]]
 - [[concept:contracts]]
 - [[integration:gpu-services]]
+
+## Связанные Beads
+
+- [[bead:ai-box-infra-3q9]] — публичный вхост `mcp.test.doitai.ru`.
