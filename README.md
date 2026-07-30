@@ -143,14 +143,20 @@ Qdrant, storage/ приложений, ollama-модели; Redis не пере�
 
 ## Домены
 
-Раскладка: `app.` — фронт SPA, `api.` — API, `admin.` — админка Filament,
-корневой домен — пока редирект на `app.` (шаблон `root.conf.template`;
-появится лендинг — заменить на раздачу статики). Домены копии задаются в
-`env/<stend>/config.env` (`ROOT_DOMAIN`/`FRONT_DOMAIN`/`API_DOMAIN`/`ADMIN_DOMAIN`,
-опционально `CERT_NAME`, по умолчанию = ROOT_DOMAIN) — публичные vhost'ы
-рендерятся из `nginx/templates/*.template` при старте контейнера nginx,
-сертификат один с SAN на все домены стенда (`DOMAINS` в Makefile: четыре
-публичных + домены тест-зоны, если её слой подключён).
+Раскладка: `app.` — фронт SPA, `api.` — API, `admin.` — админка Filament.
+Корневой домен стенда — либо лендинг (репозиторий `ai-box-site`, статика,
+`templates/root-landing.conf.template`, переменная `LANDING_DOMAIN`), либо 301
+на `app.` (`templates/root-redirect.conf.template`, переменная
+`ROOT_REDIRECT_DOMAIN`) — стенд выбирает поведение тем, какую из двух переменных
+задаёт в `env/<stend>/config.env`; оба шаблона рендерятся на всех стендах, но
+дефолты обеих переменных (`landing.invalid`/`root-redirect.invalid`, заданы в
+`docker-compose.yml`) инертны — невыбранный vhost не матчится ничем. Домены
+копии задаются в `env/<stend>/config.env`
+(`ROOT_DOMAIN`/`FRONT_DOMAIN`/`API_DOMAIN`/`ADMIN_DOMAIN`, опционально
+`CERT_NAME`, по умолчанию = ROOT_DOMAIN) — публичные vhost'ы рендерятся из
+`nginx/templates/*.template` при старте контейнера nginx, сертификат один с SAN
+на все домены стенда (`DOMAINS` в Makefile: четыре публичных + домены тест-зоны,
+если её слой подключён).
 
 Порядок важен: сначала shared-стек (сеть, БД), затем приложения. nginx
 переживает отсутствие/рестарт приложений — upstream'ы резолвятся на лету.

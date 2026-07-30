@@ -178,3 +178,18 @@ amulex 4, пустых `-d` нет), `TEST_MCP_DOMAIN` переехал из п�
 следующий запуск падает `Another instance of Certbot is already running`.
 Детали — `docs/runbooks/env-per-stend-migration.md` (Шаг 8),
 [[decision:env-per-stend]].
+
+## [2026-07-30] ingest | Развилка корневого домена: лендинг doitai vs 301 на app
+
+`root.conf.template` разделён на `root-landing` (`${LANDING_DOMAIN}`, статика
+`/var/www/ai-box-site`) и `root-redirect` (`${ROOT_REDIRECT_DOMAIN}`, прежний 301);
+тест-копия — `templates-test/root.conf.template` (`${TEST_ROOT_DOMAIN}`,
+`X-Robots-Tag: noindex` в том числе на ассетах). Дефолты переменных
+(`landing.invalid`/`root-redirect.invalid`) заданы в `docker-compose.yml` —
+envsubst не понимает `${VAR:-default}`; невыбранный vhost не матчится ничем,
+поэтому amulex и local сохранили редирект корня. Значения по стендам —
+в `env/<stend>/config.env`; маунты `ai-box-site` (прод и test) в compose;
+`make testzone-sync` доставляет тест-шаблон. Инфра-часть bead ai-box-infra-5jk;
+боевые шаги (каталоги-приёмники, пересоздание nginx, расширение SAN под
+test.doitai.ru, включение push-триггеров в ai-box-site) — отдельно.
+Подробности — [[entity:nginx-edge]].

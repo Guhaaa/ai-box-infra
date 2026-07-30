@@ -60,6 +60,29 @@ try_files + php-локация): здесь наружу светят ровно
   спровоцировать дописать туда `location /api/v1` — единственная страховка
   сейчас — предупреждающий комментарий в самом шаблоне.
 
+## Корневой домен: лендинг или редирект
+
+`root.conf.template` разделён на два шаблона, оба рендерятся на всех стендах:
+
+- `templates/root-landing.conf.template` — `server_name ${LANDING_DOMAIN}`,
+  раздача статики из `/var/www/ai-box-site` (репозиторий `ai-box-site`, экспорт
+  Webflow, деплой rsync'ом без сборки). `try_files $uri $uri.html $uri/` — ссылки
+  внутри лендинга без расширения; ассеты с хешем в имени — `expires 30d` +
+  `immutable`, HTML под это правило не попадает;
+- `templates/root-redirect.conf.template` — `server_name ${ROOT_REDIRECT_DOMAIN}`,
+  прежний 301 на `${FRONT_DOMAIN}`;
+- `templates-test/root.conf.template` — тест-копия (`${TEST_ROOT_DOMAIN}`,
+  `/var/www/test/ai-box-site`) с `X-Robots-Tag: noindex, nofollow`, продублированным
+  в location ассетов (`add_header` не наследуется там, где есть свой `add_header`).
+
+Стенд выбирает поведение тем, какую переменную он задаёт в `env/<stend>/config.env`
+(doitai — `LANDING_DOMAIN`, amulex/local — `ROOT_REDIRECT_DOMAIN`). Дефолты обеих
+переменных — несуществующие домены (`landing.invalid`/`root-redirect.invalid`) и
+живут в `docker-compose.yml`, потому что envsubst образа nginx не понимает
+`${VAR:-default}`. Невыбранный vhost рендерится, но не матчится ничем — конфликта
+`server_name` нет. Deny-правила (`/\.(ht|env|git|…)`, `*.md`, `^~ /docs/`) — второй
+рубеж: служебное репозитория и так исключено в rsync.
+
 ## Ключевые решения
 
 - **Runtime-резолв upstream'ов** (`resolver 127.0.0.11` + переменная в
@@ -83,6 +106,7 @@ try_files + php-локация): здесь наружу светят ровно
 - [[concept:deployment-topologies]]
 - [[decision:voice-dictation]]
 - [[decision:nginx-template-rendering]]
+- [[decision:env-per-stend]]
 
 ## Связанные Beads
 
