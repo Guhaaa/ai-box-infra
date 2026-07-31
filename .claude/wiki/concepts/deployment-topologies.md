@@ -3,7 +3,7 @@ title: Модели размещения и параллельные копии
 type: concept
 tags: [deployment, topology]
 sources: [docs/superpowers/specs/2026-07-03-ecosystem-infra-design.md, docs/runbooks/split-cutover-ai-box.md, nginx/templates-test/mcp.conf.template]
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # Модели размещения
@@ -62,7 +62,9 @@ updated: 2026-07-30
   (`.github/workflows/deploy-doitai.yml` в пяти репо, секрет
   DOITAI_SSH_KEY). Гочи: bind-mount несуществующего каталога (dist)
   докер создаёт под root; compose с файлами в docker/ требует явный
-  `--env-file .env`.
+  `--env-file .env`. С 2026-07-31 у прод-копии есть и внешний контур
+  раннеров полигона — `mcp.doitai.ru` (`MCP_DOMAIN` в
+  `env/doitai/config.env`, детали и инертный дефолт — [[entity:nginx-edge]]).
 
 ## Проверки перед разворотом на новом хосте (боевые уроки)
 

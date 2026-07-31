@@ -3,7 +3,7 @@ title: Nginx-вход — шаблоны, TLS, внутренние vhost'ы
 type: entity
 tags: [nginx, tls, routing]
 sources: [nginx/templates, nginx/templates-test, nginx/conf.d, nginx/snippets, Makefile]
-updated: 2026-07-30
+updated: 2026-07-31
 ---
 
 # Nginx-вход
@@ -31,7 +31,25 @@ alias `gateway`: 8083 → data-registry, 8084 → MCP, 8085 → ai-box
 (межсервисные вызовы, например MCP→ai-box). В тест-зоне то же самое —
 `test-internal.conf` на портах 8183/8184/8185.
 
-## Внешний контур раннеров полигона (тест-зона) — `mcp.test.doitai.ru`
+## Внешний контур раннеров полигона — `mcp.doitai.ru` / `mcp.test.doitai.ru`
+
+Два одинаковых по раскладке шаблона: прод `nginx/templates/mcp.conf.template`
+(`${MCP_DOMAIN}`, upstream `ai-box-mcp-php:9000`, код `/var/www/ai-box-mcp`) и
+тест `nginx/templates-test/mcp.conf.template` (`${TEST_MCP_DOMAIN}`, upstream
+`ai-box-mcp-test-php:9000`, `/var/www/test/ai-box-mcp`). Смысл контура: кабинет
+отдаёт клиенту `control_plane_url` (`AIBOX_MCP_PUBLIC_URL` в `.env` стенда
+ai-box: прод `https://mcp.doitai.ru`, тест `https://mcp.test.doitai.ru`), и
+раннер в контуре клиента ходит на `/api/external/runner/*` по внешнему домену
+(спека ai-box `2026-07-31-runner-token-cabinet-design.md`).
+
+Отличие переменных: `TEST_MCP_DOMAIN` обязательна (`:?` в
+`docker-compose.testzone.yml` — тест-зона без неё не имеет смысла), а
+`MCP_DOMAIN` опциональна с инертным дефолтом `mcp.invalid` (приём
+`LANDING_DOMAIN`: прод-контур MCP есть не на каждом стенде, обязательность
+уронила бы amulex/local). В SAN сертификата прод-домен попадает условным
+`$(if $(MCP_DOMAIN),…)` в `DOMAINS` Makefile; при первом добавлении на живом
+стенде — `make certs-expand`. Прод-шаблон живёт сразу в `templates/`, шаг
+`testzone-sync` ему не нужен.
 
 `nginx/templates-test/mcp.conf.template` — единственный публичный вход в
 ai-box-mcp тест-копии. Он НЕ дублирует раскладку `api.conf` (весь `/api/*` на
@@ -111,3 +129,4 @@ try_files + php-локация): здесь наружу светят ровно
 ## Связанные Beads
 
 - [[bead:ai-box-infra-3q9]] — публичный вхост `mcp.test.doitai.ru`.
+- [[bead:ai-box-infra-lhn]] — прод-vhost `mcp.doitai.ru`, `MCP_DOMAIN`.

@@ -41,10 +41,12 @@ COMPOSE = docker compose --env-file $(ENVDIR)/config.env \
 # Через $(if ...), а не голым -d: на стенде без тест-зоны слоя testzone.env нет,
 # переменные пусты, и безусловный -d дал бы certbot пустой аргумент домена.
 # TEST_ROOT_DOMAIN — домен лендинга тест-зоны, тоже обязан быть в SAN.
+# MCP_DOMAIN — тоже опциональный: прод-контур раннеров есть не на каждом стенде.
 # LANDING_DOMAIN сюда намеренно НЕ добавлен: на doitai он совпадает с
 # ROOT_DOMAIN и дал бы дубль -d; на стенде, где домен лендинга отличается от
 # корневого, эту строку придётся добавить отдельно.
 DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAIN) \
+          $(if $(MCP_DOMAIN),-d $(MCP_DOMAIN),) \
           $(if $(TEST_FRONT_DOMAIN),-d $(TEST_FRONT_DOMAIN),) \
           $(if $(TEST_API_DOMAIN),-d $(TEST_API_DOMAIN),) \
           $(if $(TEST_ADMIN_DOMAIN),-d $(TEST_ADMIN_DOMAIN),) \

@@ -28,6 +28,10 @@ services:
       FRONT_DOMAIN: ${FRONT_DOMAIN:?}
       API_DOMAIN: ${API_DOMAIN:?}
       ADMIN_DOMAIN: ${ADMIN_DOMAIN:?}
+      # Внешний контур раннеров полигона MCP (mcp.<домен>) — есть не на каждом
+      # стенде: не задан → инертный дефолт, vhost рендерится, но не матчится
+      # ничем (тот же приём, что LANDING_DOMAIN ниже).
+      MCP_DOMAIN: ${MCP_DOMAIN:-mcp.invalid}
       CERT_NAME: ${CERT_NAME:-${ROOT_DOMAIN}}
       # Адрес внешнего ASR-сервиса (поток голосовой диктовки) для envsubst →
       # proxy_pass в api-шаблоне. Значение per-stend в .env; не задан → инертный

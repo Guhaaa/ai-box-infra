@@ -1,0 +1,59 @@
+# ${MCP_DOMAIN} — ВНЕШНИЙ контур раннеров полигона ai-box-mcp (прод).
+# Наружу светят ровно ручки /api/external/runner/*. Всё остальное — 404.
+#
+# ВАЖНО: ai-box-mcp — внутренний control plane, его /api/v1 не имеет
+# авторизации вовсе (доверенная сеть, concepts/trusted-network). Поэтому здесь
+# НЕТ `location ~ \.php$`: regex-локация перебивает `location /`, и любой
+# /что-угодно.php уходил бы в php-fpm мимо 404. Единственный вход в php —
+# прямой fastcgi_pass внутри ^~ /api/external/.
+#
+# Стенд без прод-контура MCP переменную MCP_DOMAIN не задаёт: vhost рендерится
+# с инертным дефолтом mcp.invalid и не матчится ничем (приём LANDING_DOMAIN).
+
+server {
+    listen 80;
+    server_name ${MCP_DOMAIN};
+    include snippets/acme.conf;
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${MCP_DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
+    include snippets/ssl.conf;
+
+    root /var/www/ai-box-mcp/public;
+    charset utf-8;
+
+    access_log /var/log/nginx/mcp-external.access.log;
+    error_log  /var/log/nginx/mcp-external.error.log;
+
+    # Потолок отчёта раннера — 256K (config aibox-mcp.polygon.report_bytes).
+    client_max_body_size 1M;
+
+    # Резолвим upstream в момент запроса, а не старта nginx: иначе nginx
+    # не поднимется, пока не запущен контейнер приложения.
+    resolver 127.0.0.11 valid=10s;
+    set $mcp_public_upstream ai-box-mcp-php:9000;
+
+    location ^~ /api/external/ {
+        include snippets/php-fastcgi.conf;
+        fastcgi_pass $mcp_public_upstream;
+        fastcgi_read_timeout 120;
+        # snippets/php-fastcgi.conf ставит SCRIPT_FILENAME=$document_root$fastcgi_script_name,
+        # но вне .php-локации $fastcgi_script_name равен $uri — переопределяем
+        # явно (строки ниже include перебивают его). Осознанно, не дубль.
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+    }
+
+    location / {
+        return 404;
+    }
+}

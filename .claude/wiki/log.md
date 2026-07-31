@@ -221,3 +221,11 @@ file=106M — НЕ page-cache): ollama 0.31.1 при полном офлоаде
 манифест) — `bd memories ollama-doitai`. Остаток txo (right-size mariadb/redis,
 mem-лимиты, структурный вопрос) — в биде. Заодно закрыт uzn (queue за profiles
 в ai-box develop d8b640e0) и прибраны merged-ветки infra. [[integration:gpu-services]].
+
+## [2026-07-31] ingest | Прод-vhost mcp.doitai.ru — внешний контур раннеров
+
+Прод-аналог mcp.test.doitai.ru: `nginx/templates/mcp.conf.template`
+(наружу только `/api/external/`), `MCP_DOMAIN` с инертным дефолтом
+`mcp.invalid` в compose, условный `-d` в DOMAINS, `MCP_DOMAIN=mcp.doitai.ru`
+в `env/doitai/config.env`. Обновлены [[entity:nginx-edge]],
+[[concept:deployment-topologies]]. Bead [[bead:ai-box-infra-lhn]].
