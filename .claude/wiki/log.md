@@ -193,3 +193,19 @@ envsubst не понимает `${VAR:-default}`; невыбранный vhost �
 боевые шаги (каталоги-приёмники, пересоздание nginx, расширение SAN под
 test.doitai.ru, включение push-триггеров в ai-box-site) — отдельно.
 Подробности — [[entity:nginx-edge]].
+
+## [2026-07-30] ingest | Лендинг doitai выкачен: doitai.ru и test.doitai.ru
+
+Боевая часть bead ai-box-infra-5jk. На doitai: удалён устаревший рендер
+conf.d/root.conf (шаблона больше нет — рендер его не перезаписал бы), деплой
+пересоздал nginx (новые env/маунты), `make certs-expand` довёл SAN до 9
+(`test.doitai.ru`), контент выкачен workflow'ами ai-box-site. Приёмка: корень
+200, /pricing-models без .html, README/.git/docs 403, PDF оферты (в
+assets/docs/) не задет deny-правилом, тест-копия с noindex на страницах И
+ассетах, соседние vhost'ы и amulex без регресса. Гоча деплоя: секреты GitHub
+НЕ наследуются между репозиториями — в ai-box-site DOITAI_SSH_KEY отсутствовал
+(rsync падал `error in libcrypto` на пустом ключе); заведён выделенный CI-ключ
+(`~/.ssh/doitai_site_deploy`, отдельная строка в authorized_keys — отзываем
+независимо от личного). Push-триггеры включены. Репетиция развилки прошла на
+локальном стенде до пуша (тот же сценарий: rm устаревшего рендера +
+force-recreate). Подробности — [[entity:nginx-edge]].
