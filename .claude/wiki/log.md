@@ -209,3 +209,15 @@ assets/docs/) не задет deny-правилом, тест-копия с noin
 независимо от личного). Push-триггеры включены. Репетиция развилки прошла на
 локальном стенде до пуша (тот же сценарий: rm устаревшего рендера +
 force-recreate). Подробности — [[entity:nginx-edge]].
+
+## [2026-07-31] ingest | Фикс RAM ollama: use_mmap при полном GPU-офлоаде
+
+Bead ai-box-infra-txo, груминг + главный фикс. Диагноз по cgroup (anon=6.4G,
+file=106M — НЕ page-cache): ollama 0.31.1 при полном офлоаде передаёт раннеру
+`--no-mmap`, хостовая анонимная копия GGUF живёт рядом с VRAM (плюс 2.9G свопа).
+Фикс — `PARAMETER use_mmap true` в Modelfile, тег qwen3:8b-q4_K_M пересоздан под
+тем же именем. Итог: host used 9.7G→3.5G, available 2.0→8.2G, своп 4.9→2.4G,
+флапа нет, путь app→router→gpu0 отвечает. Гоча про `ollama pull` (перезатрёт
+манифест) — `bd memories ollama-doitai`. Остаток txo (right-size mariadb/redis,
+mem-лимиты, структурный вопрос) — в биде. Заодно закрыт uzn (queue за profiles
+в ai-box develop d8b640e0) и прибраны merged-ветки infra. [[integration:gpu-services]].

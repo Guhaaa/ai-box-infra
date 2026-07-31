@@ -3,7 +3,7 @@ title: GPU-сервисы — ollama-router и pdn-cleaner
 type: integration
 tags: [gpu, ollama, pdn, split]
 sources: [README.md, docs/superpowers/specs/2026-07-03-ecosystem-infra-design.md]
-updated: 2026-07-07
+updated: 2026-07-31
 ---
 
 # GPU-сервисы
@@ -74,6 +74,18 @@ VRAM на длинных. nvidia-persistenced (systemd, хостовый) дер
 ollama-стек фактически поднят под проектом `docker` (сеть `docker_pool`), а не
 под задуманным `ollama_router` — пересоздание ноды делать `-p docker`, пока
 стек не переунифицирован. Разбор — [[bead:map-ai-box-infra]], `bd memories gpu-uuid`.
+
+**Инцидент 2026-07-31 — `--no-mmap` при полном GPU-офлоаде (6.4G RAM впустую).**
+Разбор давления RAM на doitai (bead `ai-box-infra-txo`): ollama 0.31.1 при
+полном офлоаде модели в GPU сама передаёт раннеру `--no-mmap` → GGUF читается в
+**анонимную** память и хостовая копия живёт рядом с VRAM-копией. У qwen3:8b это
+6.3G RSS + 2.9G свопа при «100% GPU» — главный источник свопа хоста. Фикс:
+`PARAMETER use_mmap true` в Modelfile, тег пересоздан **под тем же именем**
+(клиенты не тронуты) — anon 6.4G→328M, host used 9.7G→3.5G, своп −2.5G;
+файловый кэш 5.5G reclaimable. Per-request опция не работает (следующий запрос
+без опций перезагрузил бы раннер). **Гоча:** `ollama pull` этого тега молча
+перезатрёт локальный манифест и вернёт `--no-mmap` — после pull проверять
+`ollama show --modelfile | grep use_mmap`. Детали — `bd memories ollama-doitai`.
 
 В прод-сплите (addons) GPU-сервисы работают по-старому на LAN-хосте
 `192.168.101.114`:
