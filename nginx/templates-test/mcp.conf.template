@@ -1,5 +1,7 @@
 # ${TEST_MCP_DOMAIN} — ВНЕШНИЙ контур раннеров полигона ai-box-mcp.
-# Наружу светят ровно три ручки /api/external/runner/*. Всё остальное — 404.
+# Наружу светят три ручки /api/external/runner/* и LLM-шлюз
+# /api/external/llm/* (проксирование инференса агента, см. ниже).
+# Всё остальное — 404.
 #
 # ВАЖНО: ai-box-mcp — внутренний control plane, его /api/v1 не имеет
 # авторизации вовсе (доверенная сеть, concepts/trusted-network). Поэтому здесь
@@ -49,6 +51,71 @@ server {
         fastcgi_param SCRIPT_FILENAME $document_root/index.php;
         fastcgi_param SCRIPT_NAME /index.php;
     }
+
+    # --- LLM-шлюз ---------------------------------------------------------
+    # Агент коде́ра живёт на полигонной VM в контуре клиента и ходит в Anthropic
+    # не напрямую, а сюда: ключ клиента не покидает наш контур, отзыв идёт
+    # инкрементом runner_token_version, лимит модели и учёт бюджета остаются
+    # централизованными.
+    #
+    # PHP участвует ровно одним коротким сабзапросом на вызов и в теле стрима
+    # не присутствует: висящее SSE на минуты держало бы php-fpm-воркер — та же
+    # ошибка, из-за которой в полигоне отказались от long-poll.
+
+    # Публичный доступ к цели auth_request закрыт: она отдаёт ключ заголовком,
+    # и снаружи её дёргать незачем. Точное совпадение бьёт префиксы.
+    location = /api/external/llm/authorize {
+        return 404;
+    }
+
+    # Внутренняя цель auth_request. REQUEST_URI переопределяем явно: в
+    # сабзапросе $request_uri остаётся ИСХОДНЫМ (/api/external/llm/v1/...),
+    # и без подмены Laravel не нашёл бы маршрут авторизации.
+    location = /__llm_authorize {
+        internal;
+        include snippets/php-fastcgi.conf;
+        fastcgi_pass $mcp_test_upstream;
+        fastcgi_read_timeout 15;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_param REQUEST_URI /api/external/llm/authorize;
+        fastcgi_param REQUEST_METHOD GET;
+        # Тело инференса в PHP не нужно и не должно попадать: оно бывает
+        # многомегабайтным, а решение принимается по одному заголовку.
+        fastcgi_pass_request_body off;
+        fastcgi_param CONTENT_LENGTH "";
+    }
+
+    set $anthropic_upstream api.anthropic.com;
+
+    location ^~ /api/external/llm/ {
+        auth_request /__llm_authorize;
+        auth_request_set $anthropic_key $upstream_http_x_anthropic_key;
+
+        # rewrite + proxy_pass без URI-части: с переменной в proxy_pass nginx
+        # не подставляет остаток пути сам, а переменная нужна, чтобы имя
+        # резолвилось в момент запроса — иначе недоступный DNS на старте
+        # уронил бы весь вхост, а не одну локацию.
+        rewrite ^/api/external/llm/(.*)$ /$1 break;
+        proxy_pass https://$anthropic_upstream;
+
+        proxy_set_header Host api.anthropic.com;
+        proxy_ssl_server_name on;
+        # Токен раннера дальше нас не идёт: Anthropic получает ключ клиента.
+        proxy_set_header x-api-key $anthropic_key;
+        proxy_set_header Authorization "";
+        proxy_http_version 1.1;
+
+        # Промпт агента несёт содержимое файлов проекта — серверный потолок в
+        # 1M (он под отчёты раннера) здесь мал.
+        client_max_body_size 32m;
+
+        # Стриминг: буферизация превратила бы SSE в один поздний ответ.
+        proxy_buffering off;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+    }
+    # --- /LLM-шлюз --------------------------------------------------------
 
     location / {
         return 404;
