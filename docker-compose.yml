@@ -201,6 +201,7 @@ services:
       SMTP_PASS: ${LANDING_SMTP_PASS:-}
       MAIL_FROM: ${LANDING_MAIL_FROM:-}
       MAIL_TO: ${LANDING_MAIL_TO:-sales@doitai.ru}
+      SMARTCAPTCHA_SERVER_KEY: ${LANDING_SMARTCAPTCHA_SERVER_KEY:-}
     networks:
       - ecosystem
 
