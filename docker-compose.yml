@@ -183,6 +183,27 @@ services:
     networks:
       - ecosystem
 
+  # php-fpm обработчика контактной формы лендинга (api/contact-form.php в
+  # репозитории ai-box-site). SMTP-креды — env/<стенд>/secrets.env.
+  landing-php:
+    image: aibox/php-base:8.3
+    container_name: landing-php
+    restart: unless-stopped
+    working_dir: /var/www/ai-box-site
+    volumes:
+      - ${APPS_ROOT:-/var/www}/ai-box-site:/var/www/ai-box-site:ro
+      - ./landing-php/php-fpm.conf:/usr/local/etc/php-fpm.d/zz-landing.conf:ro
+    environment:
+      SMTP_HOST: ${LANDING_SMTP_HOST:-}
+      SMTP_PORT: ${LANDING_SMTP_PORT:-465}
+      SMTP_SECURE: ${LANDING_SMTP_SECURE:-ssl}
+      SMTP_USER: ${LANDING_SMTP_USER:-}
+      SMTP_PASS: ${LANDING_SMTP_PASS:-}
+      MAIL_FROM: ${LANDING_MAIL_FROM:-}
+      MAIL_TO: ${LANDING_MAIL_TO:-sales@doitai.ru}
+    networks:
+      - ecosystem
+
 volumes:
   mariadb_data:
   redis_data:

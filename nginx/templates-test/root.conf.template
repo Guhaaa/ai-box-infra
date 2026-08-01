@@ -39,6 +39,18 @@ server {
         try_files $uri $uri.html $uri/ =404;
     }
 
+    # Контактная форма — единственный PHP лендинга; остальной /api/ (вендоренный
+    # PHPMailer) наружу не отдаём.
+    resolver 127.0.0.11 valid=10s;
+    set $landing_php_test_upstream test-landing-php:9000;
+
+    location = /api/contact-form.php {
+        include snippets/php-fastcgi.conf;
+        fastcgi_pass $landing_php_test_upstream;
+        fastcgi_read_timeout 30s;
+    }
+    location ^~ /api/ { deny all; }
+
     location ~* \.(css|js|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|pdf)$ {
         expires 30d;
         add_header Cache-Control "public, immutable";

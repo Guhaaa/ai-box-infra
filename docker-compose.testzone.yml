@@ -27,3 +27,24 @@ services:
       - ${APPS_ROOT:-/var/www}/test/ai-box-data-registry:/var/www/test/ai-box-data-registry:ro
       - ${APPS_ROOT:-/var/www}/test/ai-box-mcp:/var/www/test/ai-box-mcp:ro
       - ${APPS_ROOT:-/var/www}/test/ai-box-site:/var/www/test/ai-box-site:ro
+
+  # php-fpm обработчика контактной формы тест-копии лендинга (develop-ветка
+  # ai-box-site). Прод-аналог — landing-php в docker-compose.yml.
+  test-landing-php:
+    image: aibox/php-base:8.3
+    container_name: test-landing-php
+    restart: unless-stopped
+    working_dir: /var/www/test/ai-box-site
+    volumes:
+      - ${APPS_ROOT:-/var/www}/test/ai-box-site:/var/www/test/ai-box-site:ro
+      - ./landing-php/php-fpm.conf:/usr/local/etc/php-fpm.d/zz-landing.conf:ro
+    environment:
+      SMTP_HOST: ${LANDING_SMTP_HOST:-}
+      SMTP_PORT: ${LANDING_SMTP_PORT:-465}
+      SMTP_SECURE: ${LANDING_SMTP_SECURE:-ssl}
+      SMTP_USER: ${LANDING_SMTP_USER:-}
+      SMTP_PASS: ${LANDING_SMTP_PASS:-}
+      MAIL_FROM: ${LANDING_MAIL_FROM:-}
+      MAIL_TO: ${LANDING_MAIL_TO:-sales@doitai.ru}
+    networks:
+      - ecosystem

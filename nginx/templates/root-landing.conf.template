@@ -38,6 +38,18 @@ server {
         try_files $uri $uri.html $uri/ =404;
     }
 
+    # Контактная форма — единственный PHP лендинга; остальной /api/ (вендоренный
+    # PHPMailer) наружу не отдаём.
+    resolver 127.0.0.11 valid=10s;
+    set $landing_php_upstream landing-php:9000;
+
+    location = /api/contact-form.php {
+        include snippets/php-fastcgi.conf;
+        fastcgi_pass $landing_php_upstream;
+        fastcgi_read_timeout 30s;
+    }
+    location ^~ /api/ { deny all; }
+
     # Имена ассетов Webflow содержат хеш контента, поэтому immutable безопасен.
     # HTML под это правило не попадает и длинного кеша не получает — страницы
     # обновляются сразу после деплоя.
