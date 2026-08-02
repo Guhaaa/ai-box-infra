@@ -1,4 +1,5 @@
-# ${TEST_API_DOMAIN} — Laravel API ai-box: /api/*, /up. Всё остальное → 404.
+# ${TEST_API_DOMAIN} — Laravel API ai-box: /api/*, /up, /billing/pay/*.
+# Всё остальное → 404.
 
 server {
     listen 80;
@@ -46,6 +47,14 @@ server {
     }
 
     location = /up {
+        try_files $uri /index.php?$query_string;
+    }
+
+    # Страница перехода на платёжный шлюз эквайринга — единственная браузерная
+    # страница на API-домене. Её URL подписан Laravel вместе с хостом и строится
+    # от APP_URL (= этот домен), поэтому открываться она обязана здесь: ни на
+    # каком другом vhost подпись не сойдётся. Auth нет — доступ по подписи.
+    location ^~ /billing/pay/ {
         try_files $uri /index.php?$query_string;
     }
 
