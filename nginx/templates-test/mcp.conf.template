@@ -90,7 +90,8 @@ server {
 
     location ^~ /api/external/llm/ {
         auth_request /__llm_authorize;
-        auth_request_set $anthropic_key $upstream_http_x_anthropic_key;
+        auth_request_set $anthropic_api_key $upstream_http_x_anthropic_api_key;
+        auth_request_set $anthropic_authorization $upstream_http_x_anthropic_authorization;
 
         # rewrite + proxy_pass без URI-части: с переменной в proxy_pass nginx
         # не подставляет остаток пути сам, а переменная нужна, чтобы имя
@@ -101,9 +102,13 @@ server {
 
         proxy_set_header Host api.anthropic.com;
         proxy_ssl_server_name on;
-        # Токен раннера дальше нас не идёт: Anthropic получает ключ клиента.
-        proxy_set_header x-api-key $anthropic_key;
-        proxy_set_header Authorization "";
+        # Токен раннера дальше нас не идёт. Какой именно заголовок несёт
+        # креду, решает control plane: OAuth-токен Claude Code (sk-ant-oat…)
+        # Anthropic ждёт в Authorization: Bearer, обычный ключ — в x-api-key.
+        # Непустой из двух ровно один, а заголовок с пустым значением nginx
+        # не отправляет — поэтому условий в конфиге не нужно.
+        proxy_set_header x-api-key $anthropic_api_key;
+        proxy_set_header Authorization $anthropic_authorization;
         proxy_http_version 1.1;
 
         # Промпт агента несёт содержимое файлов проекта — серверный потолок в
