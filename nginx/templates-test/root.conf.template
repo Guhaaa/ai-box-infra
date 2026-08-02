@@ -51,7 +51,22 @@ server {
     }
     location ^~ /api/ { deny all; }
 
-    location ~* \.(css|js|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|pdf)$ {
+    # Кеш-ярусы зеркалят прод (root-landing.conf.template): хеш-именам —
+    # immutable, стабильным именам (css/js/pdf) — no-cache с ревалидацией.
+    location ~* "\.[0-9a-f]{8,}\.js$" {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        try_files $uri =404;
+    }
+
+    location ~* \.(css|js|pdf)$ {
+        add_header Cache-Control "no-cache";
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        try_files $uri =404;
+    }
+
+    location ~* \.(ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$ {
         expires 30d;
         add_header Cache-Control "public, immutable";
         add_header X-Robots-Tag "noindex, nofollow" always;

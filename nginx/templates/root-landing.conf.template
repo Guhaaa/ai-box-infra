@@ -50,10 +50,27 @@ server {
     }
     location ^~ /api/ { deny all; }
 
-    # Имена ассетов Webflow содержат хеш контента, поэтому immutable безопасен.
-    # HTML под это правило не попадает и длинного кеша не получает — страницы
-    # обновляются сразу после деплоя.
-    location ~* \.(css|js|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot|pdf)$ {
+    # Кеш двухъярусный. JS Webflow-сборки несёт хеш контента в имени
+    # (webflow.*.<hex>.js, jquery-*.min.<hex>.js) — таким immutable безопасен:
+    # новое содержимое всегда приходит под новым именем.
+    location ~* "\.[0-9a-f]{8,}\.js$" {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # Рукописные css/js и документы (pdf) живут под стабильными именами —
+    # no-cache: браузер хранит копию, но перед использованием ревалидирует
+    # по ETag/Last-Modified (304, если не менялось). ?v=N больше не нужен.
+    location ~* \.(css|js|pdf)$ {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    # Картинки и шрифты Webflow-экспорта тоже с хеш-именами — immutable.
+    # HTML ни под одно из правил не попадает и длинного кеша не получает —
+    # страницы обновляются сразу после деплоя.
+    location ~* \.(ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$ {
         expires 30d;
         add_header Cache-Control "public, immutable";
         try_files $uri =404;
