@@ -32,6 +32,13 @@ server {
     root /var/www/ai-box-site;
     index index.html;
 
+    # Канонические URL — без .html: старые адреса с расширением редиректим 301.
+    # Матчим $request_uri (исходный запрос клиента), а не location: директива
+    # index делает внутренний редирект / -> /index.html, и location-вариант
+    # зациклил бы главную (301 на саму себя).
+    if ($request_uri ~ "^/index\.html") { return 301 /; }
+    if ($request_uri ~ "^/(?<page>.+)\.html") { return 301 /$page; }
+
     # Webflow-экспорт: страницы лежат файлами <slug>.html, а ссылки внутри —
     # без расширения (/pricing-models). Отдаём оба варианта URL.
     location / {
