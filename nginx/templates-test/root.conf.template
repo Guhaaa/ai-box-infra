@@ -82,5 +82,5 @@ server {
 
     location ~ /\.(ht|env|git|github|claude|idea) { deny all; }
     location ~* \.md$                             { deny all; }
-    location ^~ /docs/                            { deny all; }
+    location ^~ /docs/superpowers/                { deny all; }
 }
