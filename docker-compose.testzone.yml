@@ -18,6 +18,7 @@ services:
       TEST_ADMIN_DOMAIN: ${TEST_ADMIN_DOMAIN:?}
       TEST_MCP_DOMAIN: ${TEST_MCP_DOMAIN:?}
       TEST_ROOT_DOMAIN: ${TEST_ROOT_DOMAIN:?TEST_ROOT_DOMAIN обязателен (лендинг тест-зоны)}
+      PEOPLE_TEST_DOMAIN: ${PEOPLE_TEST_DOMAIN:?PEOPLE_TEST_DOMAIN обязателен (people тест-зоны)}
     volumes:
       # Шаблоны тест-vhost'ов доставляются в nginx/templates/ на хосте
       # командой `make testzone-enable` (файл-маунт внутрь ro-тома невозможен).
@@ -47,5 +48,7 @@ services:
       MAIL_FROM: ${LANDING_MAIL_FROM:-}
       MAIL_TO: ${LANDING_MAIL_TO:-sales@doitai.ru}
       SMARTCAPTCHA_SERVER_KEY: ${LANDING_SMARTCAPTCHA_SERVER_KEY:-}
+      TG_BOT_TOKEN: ${LANDING_TG_BOT_TOKEN:-}
+      TG_CHAT_ID: ${LANDING_TG_CHAT_ID:-}
     networks:
       - ecosystem

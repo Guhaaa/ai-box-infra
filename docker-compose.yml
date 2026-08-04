@@ -46,6 +46,9 @@ services:
       # ничем. Дефолты обязаны быть здесь — envsubst в шаблоне синтаксис
       # ${VAR:-default} не понимает (тот же приём, что у ASR_WS_UPSTREAM).
       LANDING_DOMAIN: ${LANDING_DOMAIN:-landing.invalid}
+      # Поддомен people (карточка AI-трансформации, репозиторий ai-box-site,
+      # папка people/). Не задан → инертный дефолт, vhost ничем не матчится.
+      PEOPLE_DOMAIN: ${PEOPLE_DOMAIN:-people.invalid}
       ROOT_REDIRECT_DOMAIN: ${ROOT_REDIRECT_DOMAIN:-root-redirect.invalid}
     volumes:
       - ./nginx/templates:/etc/nginx/templates:ro
@@ -202,6 +205,8 @@ services:
       MAIL_FROM: ${LANDING_MAIL_FROM:-}
       MAIL_TO: ${LANDING_MAIL_TO:-sales@doitai.ru}
       SMARTCAPTCHA_SERVER_KEY: ${LANDING_SMARTCAPTCHA_SERVER_KEY:-}
+      TG_BOT_TOKEN: ${LANDING_TG_BOT_TOKEN:-}
+      TG_CHAT_ID: ${LANDING_TG_CHAT_ID:-}
     networks:
       - ecosystem
 

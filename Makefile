@@ -51,7 +51,9 @@ DOMAINS = -d $(ROOT_DOMAIN) -d $(FRONT_DOMAIN) -d $(API_DOMAIN) -d $(ADMIN_DOMAI
           $(if $(TEST_API_DOMAIN),-d $(TEST_API_DOMAIN),) \
           $(if $(TEST_ADMIN_DOMAIN),-d $(TEST_ADMIN_DOMAIN),) \
           $(if $(TEST_MCP_DOMAIN),-d $(TEST_MCP_DOMAIN),) \
-          $(if $(TEST_ROOT_DOMAIN),-d $(TEST_ROOT_DOMAIN),)
+          $(if $(TEST_ROOT_DOMAIN),-d $(TEST_ROOT_DOMAIN),) \
+          $(if $(PEOPLE_DOMAIN),-d $(PEOPLE_DOMAIN),) \
+          $(if $(PEOPLE_TEST_DOMAIN),-d $(PEOPLE_TEST_DOMAIN),)
 CERT_EMAIL ?= admin@amulex.ru
 
 # Neo4j: плагин GDS ставим сами (пин версии + sha256), НЕ через NEO4J_PLUGINS —
@@ -132,6 +134,7 @@ testzone-sync:
 		cp nginx/templates-test/internal-test.conf.template nginx/templates/test-internal.conf.template; \
 		cp nginx/templates-test/mcp.conf.template nginx/templates/test-mcp.conf.template; \
 		cp nginx/templates-test/root.conf.template nginx/templates/test-root.conf.template; \
+		cp nginx/templates-test/people.conf.template nginx/templates/test-people.conf.template; \
 		echo "тест-зона активна: шаблоны пересинхронизированы"; \
 	else \
 		echo "тест-зона не активирована — пересинхронизация не нужна"; \
