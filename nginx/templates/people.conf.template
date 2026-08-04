@@ -1,0 +1,67 @@
+# ${PEOPLE_DOMAIN} — поддомен people: карточка «AI-трансформация для компаний»
+# и внутренняя страница (репозиторий ai-box-site, папка people/, кладётся тем
+# же rsync'ом CI, что и лендинг). Стенд без поддомена оставляет инертный
+# дефолт people.invalid (см. docker-compose.yml) — vhost ничем не матчится.
+
+server {
+    listen 80;
+    server_name ${PEOPLE_DOMAIN};
+    include snippets/acme.conf;
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${PEOPLE_DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
+    include snippets/ssl.conf;
+
+    access_log /var/log/nginx/people.access.log;
+    error_log  /var/log/nginx/people.error.log;
+
+    root /var/www/ai-box-site/people;
+    index index.html;
+
+    # Канонические URL — без .html (тот же приём, что root-landing).
+    if ($request_uri ~ "^/index\.html") { return 301 /; }
+    if ($request_uri ~ "^/(?<page>.+)\.html") { return 301 /$page; }
+
+    location / {
+        try_files $uri $uri.html $uri/ =404;
+    }
+
+    # Контактная форма — общий обработчик лендинга (api/contact-form.php живёт
+    # в корне ai-box-site, а root этого vhost'а — подпапка people/, поэтому
+    # для fastcgi возвращаем document_root на корень репозитория.
+    resolver 127.0.0.11 valid=10s;
+    set $landing_php_upstream landing-php:9000;
+
+    location = /api/contact-form.php {
+        root /var/www/ai-box-site;
+        include snippets/php-fastcgi.conf;
+        fastcgi_pass $landing_php_upstream;
+        fastcgi_read_timeout 30s;
+    }
+    location ^~ /api/ { deny all; }
+
+    # Рукописные css/js — стабильные имена: no-cache с ревалидацией по
+    # ETag/Last-Modified (mtime ставит rsync), как на основном лендинге.
+    location ~* \.(css|js|pdf)$ {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
+    location ~* \.(ico|png|jpg|jpeg|gif|svg|webp|woff|woff2|ttf|eot)$ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    location ~ /\.(ht|env|git|github|claude|idea) { deny all; }
+    location ~* \.md$                             { deny all; }
+}

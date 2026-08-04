@@ -1,0 +1,64 @@
+# ${PEOPLE_TEST_DOMAIN} — тест-копия поддомена people (ветка develop
+# ai-box-site, папка people/). Прод-аналог — nginx/templates/people.conf.template.
+# Тест-копия публична — noindex во всех ответах (add_header не наследуется в
+# location с собственным add_header, поэтому дублируется).
+
+server {
+    listen 80;
+    server_name ${PEOPLE_TEST_DOMAIN};
+    include snippets/acme.conf;
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${PEOPLE_TEST_DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${CERT_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
+    include snippets/ssl.conf;
+
+    access_log /var/log/nginx/people-test.access.log;
+    error_log  /var/log/nginx/people-test.error.log;
+
+    root /var/www/test/ai-box-site/people;
+    index index.html;
+
+    if ($request_uri ~ "^/index\.html") { return 301 /; }
+    if ($request_uri ~ "^/(?<page>.+)\.html") { return 301 /$page; }
+
+    location / {
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        try_files $uri $uri.html $uri/ =404;
+    }
+
+    resolver 127.0.0.11 valid=10s;
+    set $landing_php_test_upstream test-landing-php:9000;
+
+    location = /api/contact-form.php {
+        root /var/www/test/ai-box-site;
+        include snippets/php-fastcgi.conf;
+        fastcgi_pass $landing_php_test_upstream;
+        fastcgi_read_timeout 30s;
+    }
+    location ^~ /api/ { deny all; }
+
+    location ~* \.(css|js|pdf)$ {
+        add_header Cache-Control "no-cache";
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        try_files $uri =404;
+    }
+
+    location ~* \.(ico|png|jpg|jpeg|gif|svg|webp|woff|woff2|ttf|eot)$ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        try_files $uri =404;
+    }
+
+    location ~ /\.(ht|env|git|github|claude|idea) { deny all; }
+    location ~* \.md$                             { deny all; }
+}
