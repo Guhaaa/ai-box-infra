@@ -30,6 +30,10 @@ server {
     if ($request_uri ~ "^/index\.html") { return 301 /; }
     if ($request_uri ~ "^/(?<page>.+)\.html") { return 301 /$page; }
 
+    # Лендинг стал одностраничником: старый адрес внутренней страницы
+    # редиректим на корень (ссылки успели разойтись).
+    location ~ ^/transformation/?$ { return 301 /; }
+
     location / {
         add_header X-Robots-Tag "noindex, nofollow" always;
         try_files $uri $uri.html $uri/ =404;
