@@ -19,6 +19,9 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/${CERT_NAME}/privkey.pem;
     include snippets/ssl.conf;
 
+    # Тест-зона публична, но не должна индексироваться как дубль боевой.
+    add_header X-Robots-Tag "noindex, nofollow" always;
+
     root /var/www/test/ai-box/public;
     index index.php;
     charset utf-8;
