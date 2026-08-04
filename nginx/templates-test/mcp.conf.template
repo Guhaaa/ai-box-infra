@@ -73,6 +73,11 @@ server {
     # и без подмены Laravel не нашёл бы маршрут авторизации.
     location = /__llm_authorize {
         internal;
+        # Лимит тела обязан повторять локейшен LLM-шлюза: auth-сабреквест
+        # наследует серверный 1M, и nginx применяет проверку размера в ЕГО
+        # контексте — при теле >1M сабреквест падал 413, auth_request отдавал
+        # клиенту 500 (тело в PHP всё равно не передаётся, проверка формальная).
+        client_max_body_size 32m;
         include snippets/php-fastcgi.conf;
         fastcgi_pass $mcp_test_upstream;
         fastcgi_read_timeout 15;
