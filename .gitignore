@@ -19,6 +19,7 @@ nginx/conf.d/front.conf
 nginx/conf.d/api.conf
 nginx/conf.d/admin.conf
 nginx/conf.d/mcp.conf
+nginx/conf.d/people.conf
 # Рендеры тест-зоны (на хостах с активным testzone-override)
 nginx/conf.d/test-*.conf
 
