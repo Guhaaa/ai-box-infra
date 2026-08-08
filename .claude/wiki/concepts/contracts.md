@@ -14,8 +14,11 @@ updated: 2026-07-04
 
 - php-fpm приложений (их ждёт nginx): `ai-box-php:9000`,
   `ai-box-dr-php:9000`, `ai-box-mcp-php:9000`;
+- не-php приложения: `ai-box-wiki-web:8080` — API корпоративной wiki
+  (публичный вход `https://api.<ROOT_DOMAIN>/wiki/*`, внутренний
+  `http://gateway:8086`);
 - инфра-сервисы: `mariadb`, `redis`, `qdrant`, `browserless`,
-  `gateway` (alias nginx; внутренние vhost'ы 8083/8084/8085);
+  `gateway` (alias nginx; внутренние vhost'ы 8083/8084/8085/8086);
 - GPU-сервисы в режиме «всё внутри»: `ollama-router:11434`,
   `ai-box-pdn-cleaner:8000`.
 
@@ -44,7 +47,8 @@ updated: 2026-07-04
 `DB_HOST=mariadb`, `REDIS_HOST=redis` (+ пароль — настоящий, не `null`),
 `QDRANT_BASE_URL=http://qdrant:6333` (DR), `DEMO_BROWSERLESS_URL=http://browserless:3000`,
 `DATA_REGISTRY_URL=http://gateway:8083`, `AIBOX_MCP_URL=http://gateway:8084`,
-`AIBOX_BASE_URL=http://gateway:8085` (или публичный URL), `OLLAMA_BASE_URL`/
+`AIBOX_BASE_URL=http://gateway:8085` (или публичный URL),
+`WIKI_URL=http://gateway:8086` (потребители wiki), `OLLAMA_BASE_URL`/
 `PDN_CLEANER_URL` — адреса GPU-хоста (сплит) или docker-имена («всё внутри»).
 
 ## Базы MariaDB

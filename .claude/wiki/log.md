@@ -229,3 +229,11 @@ mem-лимиты, структурный вопрос) — в биде. Заод
 `mcp.invalid` в compose, условный `-d` в DOMAINS, `MCP_DOMAIN=mcp.doitai.ru`
 в `env/doitai/config.env`. Обновлены [[entity:nginx-edge]],
 [[concept:deployment-topologies]]. Bead [[bead:ai-box-infra-lhn]].
+
+## [2026-08-08] ingest | Маршруты корпоративной wiki: /wiki/ на api-домене и vhost 8086
+
+Вика (`ai-box-template-wiki-global`) переехала в экосистему без своего домена:
+`location ^~ /wiki/` в шаблоне api-vhost (rewrite префикса, upstream
+`ai-box-wiki-web:8080`) и внутренний `nginx/conf.d/internal-wiki.conf` на 8086.
+Контракты и `WIKI_URL=http://gateway:8086` — в README, детали и грабли —
+[[entity:nginx-edge]], [[concept:contracts]].

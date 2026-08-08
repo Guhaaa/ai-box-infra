@@ -12,7 +12,7 @@ compose-стеками и подключаются к общей docker-сети
 
 | Сервис | Образ | Доступ |
 |---|---|---|
-| nginx | nginx:1.27-alpine | 80/443 наружу; внутренние vhost'ы 8083 (DR), 8084 (MCP) — только сеть `ecosystem`, alias `gateway` |
+| nginx | nginx:1.27-alpine | 80/443 наружу; внутренние vhost'ы 8083 (DR), 8084 (MCP), 8085 (ai-box), 8086 (wiki) — только сеть `ecosystem`, alias `gateway` |
 | mariadb | mariadb:11.8 (LTS) | сеть `ecosystem`; 127.0.0.1:3306 хоста для администрирования |
 | redis | redis:7.4-alpine | только сеть `ecosystem` |
 | qdrant | qdrant/qdrant:v1.12.4 | сеть `ecosystem`; 127.0.0.1:6333 для диагностики |
@@ -27,6 +27,17 @@ compose-стеками и подключаются к общей docker-сети
 - `ai-box-php:9000`
 - `ai-box-dr-php:9000`
 - `ai-box-mcp-php:9000`
+
+**ai-box-template-wiki-global** (корпоративная wiki, Python) — не php: контейнер
+`ai-box-wiki-web:8080` на сети `ecosystem` отдаёт только API (intake, read,
+bootstrap, статус). Публичный вход — раздел api-домена:
+`https://api.<ROOT_DOMAIN>/wiki/*` (префикс снимает rewrite в
+`nginx/templates/api.conf.template`), внутренний — vhost 8086
+(`nginx/conf.d/internal-wiki.conf`), потребители ходят на
+`http://gateway:8086`. Рядом в том же стеке живёт `ai-box-wiki-pipeline`
+(агентский ingest, git push в GitLab) — он наружу не смотрит и через nginx не
+ходит. На стендах без вики upstream не резолвится: путь `/wiki/` отдаёт 502,
+как и любой другой незапущенный апстрим.
 
 **ai-box-pdn-cleaner** (Python/FastAPI, репозиторий ai-box-bert-ner-train) —
 не php и не ходит через nginx: контейнер `ai-box-pdn-cleaner:8000` на сети
@@ -56,6 +67,7 @@ BROWSERLESS_WS=ws://browserless:3000   # ai-box (demo)
 DATA_REGISTRY_URL=http://gateway:8083  # потребители DR
 MCP_URL=http://gateway:8084            # потребители MCP (в ai-box: AIBOX_MCP_URL)
 AIBOX_BASE_URL=http://gateway:8085     # межсервисные вызовы ai-box (например, из MCP)
+WIKI_URL=http://gateway:8086           # потребители корпоративной wiki (MCP-обёртка, бек)
 PDN_CLEANER_URL=http://ai-box-pdn-cleaner:8000  # потребители маскирования ПДн
 OLLAMA_URL=http://ollama-router:11434           # (или http://172.30.0.1:11434 при systemd-варианте)
 ```

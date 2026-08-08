@@ -8,8 +8,10 @@ name: ai_box_infra
 #   ai-box-php:9000        — php-fpm приложения ai-box
 #   ai-box-dr-php:9000     — php-fpm приложения ai-box-data-registry
 #   ai-box-mcp-php:9000    — php-fpm приложения ai-box-mcp
+#   ai-box-wiki-web:8080   — API корпоративной wiki (не php, proxy_pass)
 # Инфра-сервисы доступны приложениям по именам: mariadb, redis, qdrant,
-# browserless, gateway (внутренние vhost'ы DR/MCP на 8083/8084).
+# browserless, gateway (внутренние vhost'ы DR/MCP/ai-box/wiki на
+# 8083/8084/8085/8086).
 
 services:
 

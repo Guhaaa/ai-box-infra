@@ -32,6 +32,7 @@ server {
     # не поднимется, пока не запущен контейнер приложения.
     resolver 127.0.0.11 valid=10s;
     set $ai_box_upstream ai-box-php:9000;
+    set $ai_box_wiki_upstream ai-box-wiki-web:8080;
 
     # Межсервисная поверхность ai-box (POST /api/internal/llm/chat и т. п.) наружу
     # не публикуется: её вход — внутренний vhost 8085 (internal-ai-box.conf), доступный
@@ -51,6 +52,33 @@ server {
 
     location = /up {
         try_files $uri /index.php?$query_string;
+    }
+
+    # ── Корпоративная wiki (репозиторий ai-box-template-wiki-global) ────────
+    # Своего домена у вики нет: её API — раздел api-домена. Внутри контейнера
+    # маршруты корневые (/api/incoming, /api/wiki/…), поэтому префикс снимаем
+    # rewrite'ом; сервер вики строит абсолютные ссылки не из заголовков, а из
+    # своего WIKI_PUBLIC_BASE (= https://${API_DOMAIN}/wiki).
+    # proxy_pass с переменной (upstream резолвится в момент запроса — стенд без
+    # вики просто отдаёт 502, как и с прочими приложениями) не принимает
+    # URI-часть, отсюда `rewrite … break` вместо слэша в proxy_pass.
+    location ^~ /wiki/ {
+        rewrite ^/wiki/(.*)$ /$1 break;
+        proxy_pass http://$ai_box_wiki_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        # Отправка материала сотрудником — один запрос до 25 МБ; чтение
+        # manifest'а и файлов быстрое. Потолок ниже, чем у php-локаций.
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+    }
+
+    location = /wiki {
+        return 301 /wiki/;
     }
 
     # Страница перехода на платёжный шлюз эквайринга — единственная браузерная

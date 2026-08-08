@@ -17,7 +17,8 @@ updated: 2026-07-31
 
 - `root.conf` — корневой домен → 301 на `app.` (задел под лендинг);
 - `front.conf` — `app.` — SPA-статика `ai-box-front/dist` + `/widget/*`;
-- `api.conf` — `api.` — только `/api/*` и `/up`, остальное 404;
+- `api.conf` — `api.` — только `/api/*`, `/up`, `/wiki/*` и `/billing/pay/*`,
+  остальное 404;
 - `admin.conf` — `admin.` — Filament на корне.
 
 TLS: один SAN-сертификат на 4 домена, lineage = `CERT_NAME`
@@ -28,8 +29,35 @@ TLS: один SAN-сертификат на 4 домена, lineage = `CERT_NAME
 
 `nginx/conf.d/internal-*.conf`, доступны только с сети `ecosystem` по
 alias `gateway`: 8083 → data-registry, 8084 → MCP, 8085 → ai-box
-(межсервисные вызовы, например MCP→ai-box). В тест-зоне то же самое —
-`test-internal.conf` на портах 8183/8184/8185.
+(межсервисные вызовы, например MCP→ai-box), 8086 → корпоративная wiki
+(`internal-wiki.conf`). В тест-зоне то же самое — `test-internal.conf` на
+портах 8183/8184/8185; тест-копии вики пока нет.
+
+## Корпоративная wiki — раздел api-домена, а не свой vhost
+
+Добавлено 2026-08-08 вместе с переездом `ai-box-template-wiki-global` в
+экосистему. У вики **нет своего домена**: её UI станет разделом СПА-фронта, а
+наружу смотрит только API. Публичный вход — `location ^~ /wiki/` в
+`nginx/templates/api.conf.template`, upstream `ai-box-wiki-web:8080` (не php:
+это Python-сервер, поэтому `proxy_pass`, а не `fastcgi_pass`).
+
+Две неочевидные детали:
+
+- **Префикс снимается `rewrite ^/wiki/(.*)$ /$1 break`, а не слэшем в
+  `proxy_pass`.** Upstream задан переменной (`set $ai_box_wiki_upstream …`) —
+  чтобы nginx стартовал на стендах без вики и резолвил имя в момент запроса;
+  а `proxy_pass` с переменной не принимает URI-часть, и `proxy_pass
+  http://$var/;` уронил бы конфиг.
+- **Сервер вики не восстанавливает префикс из заголовков.** Абсолютные
+  ссылки bootstrap payload он строит из своего env `WIKI_PUBLIC_BASE`
+  (= `https://${API_DOMAIN}/wiki`). Ошибка в этой переменной ломает
+  подключение рабочих папок сотрудников, а не отдачу API — снаружи выглядит
+  как «всё работает, но ссылки не те».
+
+Второй вход — внутренний vhost 8086 (`nginx/conf.d/internal-wiki.conf`), без
+префикса: потребители внутри сети (будущая MCP-обёртка wiki-тулов, бек ai-box)
+ходят на `http://gateway:8086`. На стендах без вики оба маршрута отдают 502 —
+принятый в стеке паттерн «nginx переживает отсутствие приложений».
 
 ## Внешний контур раннеров полигона — `mcp.doitai.ru` / `mcp.test.doitai.ru`
 
