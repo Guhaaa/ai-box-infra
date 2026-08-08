@@ -3,7 +3,7 @@ title: Контракты для приложений экосистемы
 type: concept
 tags: [contracts, network, redis]
 sources: [README.md, docker-compose.yml, nginx/conf.d]
-updated: 2026-07-04
+updated: 2026-08-08
 ---
 
 # Контракты
@@ -18,6 +18,7 @@ updated: 2026-07-04
   (публичный вход `https://api.<ROOT_DOMAIN>/wiki/*`, внутренний
   `http://gateway:8086`);
 - инфра-сервисы: `mariadb`, `redis`, `qdrant`, `browserless`,
+  `graphiti-sidecar:8000` (графовый инжест: data-registry + вики),
   `gateway` (alias nginx; внутренние vhost'ы 8083/8084/8085/8086);
 - GPU-сервисы в режиме «всё внутри»: `ollama-router:11434`,
   `ai-box-pdn-cleaner:8000`.
@@ -45,7 +46,9 @@ updated: 2026-07-04
 ## Env-хосты в .env приложений
 
 `DB_HOST=mariadb`, `REDIS_HOST=redis` (+ пароль — настоящий, не `null`),
-`QDRANT_BASE_URL=http://qdrant:6333` (DR), `DEMO_BROWSERLESS_URL=http://browserless:3000`,
+`QDRANT_BASE_URL=http://qdrant:6333` (DR),
+`GRAPHITI_BASE_URL=http://graphiti-sidecar:8000` (DR, вики),
+`DEMO_BROWSERLESS_URL=http://browserless:3000`,
 `DATA_REGISTRY_URL=http://gateway:8083`, `AIBOX_MCP_URL=http://gateway:8084`,
 `AIBOX_BASE_URL=http://gateway:8085` (или публичный URL),
 `WIKI_URL=http://gateway:8086` (потребители wiki), `OLLAMA_BASE_URL`/

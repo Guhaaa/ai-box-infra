@@ -237,3 +237,13 @@ mem-лимиты, структурный вопрос) — в биде. Заод
 `ai-box-wiki-web:8080`) и внутренний `nginx/conf.d/internal-wiki.conf` на 8086.
 Контракты и `WIKI_URL=http://gateway:8086` — в README, детали и грабли —
 [[entity:nginx-edge]], [[concept:contracts]].
+
+## [2026-08-08] ingest | Graphiti-сайдкар переехал в shared-стек
+
+Сервис `graphiti-sidecar` в docker-compose.yml (build из
+`${APPS_ROOT}/ai-box-data-registry/sidecar/graphiti`, image
+aibox/graphiti-sidecar, `--build` в `make up`), env `GRAPHITI_*` по стендам,
+LLM — внутренний прокси ai-box (gateway:8085). Мотивация: два потребителя
+(реестр + корпоративная вики), релизы DR без окон недоступности инжеста.
+Новая [[decision:graphiti-sidecar-shared]]; обновлены [[entity:shared-stack]],
+[[concept:contracts]], README. Bead [[bead:ai-box-infra-vl8]].

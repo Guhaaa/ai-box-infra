@@ -27,4 +27,5 @@
 - [[decision:nginx-template-rendering]] — рендер nginx-шаблонов на деплое (envsubst только в entrypoint → тихий no-op).
 - [[decision:neo4j-graph-store]] — Neo4j + GDS в общем стеке для knowledge-графа реестра (GDS идемпотентным fetch'ем, пин 5.26.28↔2.13.4).
 - [[decision:env-per-stend]] — env по стендам: STAND-слои config/secrets, выпил плоского .env, eco-deploy hook.
+- [[decision:graphiti-sidecar-shared]] — Graphiti-сайдкар как shared-сервис: сборка инфрой из репозитория DR, LLM через внутренний прокси ai-box.
 - (прочая дизайн-история до вики — в `docs/superpowers/specs/` и runbook'ах)

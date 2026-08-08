@@ -3,7 +3,7 @@ title: Shared-стек — сервисы и overlay-файлы
 type: entity
 tags: [docker, compose, infrastructure]
 sources: [docker-compose.yml, docker-compose.transition.yml, docker-compose.local.yml, Makefile, mariadb/initdb/01-apps.sh]
-updated: 2026-07-30
+updated: 2026-08-08
 ---
 
 # Shared-стек
@@ -17,6 +17,7 @@ updated: 2026-07-30
 | redis | redis:7.4-alpine | requirepass обязателен (строка `null` недопустима — боевой урок); DB-индексы — [[concept:contracts]] |
 | qdrant | qdrant/qdrant:${QDRANT_VERSION} | версия цели ≥ версии источника данных; пин по прод-источнику |
 | neo4j | neo4j:5.26.28-community | граф-хранилище knowledge реестра; GDS 2.13.4 ставит `make neo4j-plugins` (пин+sha256, не NEO4J_PLUGINS); loopback 7687/7474; см. [[decision:neo4j-graph-store]] |
+| graphiti-sidecar | aibox/graphiti-sidecar (build из `${APPS_ROOT}/ai-box-data-registry/sidecar/graphiti`) | shared графовый инжест/поиск (реестр + вики); DNS-контракт `graphiti-sidecar:8000`; env `GRAPHITI_*`; см. [[decision:graphiti-sidecar-shared]] |
 | browserless | browserless/chrome | TOKEN обязателен |
 | certbot | certbot/certbot | profile `certs`, одноразовые запуски из Makefile |
 
@@ -55,7 +56,8 @@ OOM), `NEO4J_HEAP` и `NEO4J_PAGECACHE` (heap+pagecache Neo4j, дефолт по
 
 ## Makefile
 
-`up/down/logs`, `config` (валидация интерполяции + печать стенда),
+`up` (с `--build` — пересборка образа сайдкара из checkout'а DR)/`down`/`logs`,
+`config` (валидация интерполяции + печать стенда),
 `eco-deploy` (build-base + up + `deploy/post-deploy.sh`),
 `build-base`/`build-base-dev`, `certs-init` (standalone до первого nginx),
 `certs-expand` (`--expand` нового SAN на живом стеке — `renew` список SAN не
