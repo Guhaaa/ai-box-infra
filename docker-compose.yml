@@ -188,6 +188,51 @@ services:
     networks:
       - ecosystem
 
+  # Graphiti-сайдкар — shared-сервис графового инжеста/поиска поверх neo4j
+  # (эпик ai-box-dr-v18). Код живёт в репозитории ai-box-data-registry
+  # (sidecar/graphiti), образ собирает ЭТОТ стек — релизный цикл сайдкара
+  # отвязан от релизов DR (у сайдкара два потребителя: реестр и корпоративная
+  # вики, релизы DR не должны давать окон недоступности инжеста вики).
+  # Потребители ходят по сети ecosystem на http://graphiti-sidecar:8000.
+  graphiti-sidecar:
+    build: ${APPS_ROOT:-/var/www}/ai-box-data-registry/sidecar/graphiti
+    image: aibox/graphiti-sidecar
+    container_name: infra_graphiti
+    restart: unless-stopped
+    depends_on:
+      - neo4j
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?}
+      # Канонический LLM-путь — внутренний OpenAI-совместимый прокси ai-box
+      # (gateway:8085/api/internal/llm/v1, спека ai-box-back-pssf); он
+      # игнорирует Authorization, поэтому дефолт ключей — заглушка internal.
+      # Пустым ключ быть НЕ может: graphiti-core создаёт эмбеддер уже на
+      # старте и пустой ключ роняет контейнер в краш-луп. Реальные ключи
+      # (прямой внешний провайдер) — через env/<стенд>/secrets.env.
+      LLM_BASE_URL: ${GRAPHITI_LLM_BASE_URL:-}
+      LLM_API_KEY: ${GRAPHITI_LLM_API_KEY:-internal}
+      EMBEDDER_BASE_URL: ${GRAPHITI_EMBEDDER_BASE_URL:-}
+      EMBEDDER_API_KEY: ${GRAPHITI_EMBEDDER_API_KEY:-internal}
+      # Коды моделей — из каталога llm_models ai-box (kind=chat/embedding).
+      # Дефолты пустые НАМЕРЕННО (а не gpt-4o-mini, как было в compose DR):
+      # молчаливый OpenAI-дефолт при работе через прокси дал бы 422
+      # MODEL_NOT_FOUND; незаполненный стенд должен падать громко на первом
+      # вызове (сам сайдкар при этом стартует — модель уходит в тело запроса).
+      DEFAULT_MODEL: ${GRAPHITI_DEFAULT_MODEL:-}
+      DEFAULT_EMBEDDING_MODEL: ${GRAPHITI_DEFAULT_EMBEDDING_MODEL:-}
+      DEFAULT_EMBEDDING_DIM: ${GRAPHITI_DEFAULT_EMBEDDING_DIM:-1536}
+      SEMAPHORE_LIMIT: ${GRAPHITI_SEMAPHORE_LIMIT:-10}
+      KNOWN_CONSUMERS: ${GRAPHITI_KNOWN_CONSUMERS:-dr,wiki}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/healthz')\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - ecosystem
+
   # php-fpm обработчика контактной формы лендинга (api/contact-form.php в
   # репозитории ai-box-site). SMTP-креды — env/<стенд>/secrets.env.
   landing-php:

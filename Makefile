@@ -71,8 +71,12 @@ NEO4J_GDS_JAR     := $(NEO4J_PLUGINS_DIR)/neo4j-graph-data-science-$(NEO4J_GDS_V
 
 # neo4j-plugins — предшаг: host-каталог neo4j/plugins должен быть пополнён
 # до старта контейнера neo4j (иначе GDS не загрузится, поймает neo4j-smoke).
+# --build пересобирает ТОЛЬКО сервисы с ключом build: — это ровно
+# graphiti-sidecar (образ из checkout'а ai-box-data-registry по ${APPS_ROOT};
+# checkout обязан существовать на стенде). Слои pip кэшируются — пересборка
+# без изменений кода сайдкара занимает секунды.
 up: neo4j-plugins
-	$(COMPOSE) up -d
+	$(COMPOSE) up -d --build
 
 # Экосистемный деплой: собрать базовый образ, поднять стек, прогнать идемпотентный
 # пост-деплой hook. STAND экспортируется выше — post-deploy.sh его видит.
