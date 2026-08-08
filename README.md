@@ -17,6 +17,7 @@ compose-стеками и подключаются к общей docker-сети
 | redis | redis:7.4-alpine | только сеть `ecosystem` |
 | qdrant | qdrant/qdrant:v1.12.4 | сеть `ecosystem`; 127.0.0.1:6333 для диагностики |
 | neo4j | neo4j:5.26.28-community | сеть `ecosystem`; 127.0.0.1:7687 (Bolt) / 7474 (Browser) для диагностики; GDS 2.13.4 через `make neo4j-plugins` |
+| graphiti-sidecar | aibox/graphiti-sidecar (build из `${APPS_ROOT}/ai-box-data-registry/sidecar/graphiti`) | только сеть `ecosystem` (`http://graphiti-sidecar:8000`), healthcheck `/healthz` |
 | browserless | browserless/chrome | только сеть `ecosystem` |
 | certbot | certbot/certbot | одноразовые запуски из Makefile (profile `certs`) |
 
@@ -45,6 +46,15 @@ bootstrap, статус). Публичный вход — раздел api-до�
 Bearer-токеном. Требует GPU: на хосте нужен NVIDIA Container Toolkit.
 Вместо собственного `pii-redis` использует общий Redis (DB 6).
 
+**graphiti-sidecar** (Python/FastAPI, код в `ai-box-data-registry/sidecar/graphiti`,
+деплой — этим стеком) — shared-сервис графового инжеста/поиска поверх `neo4j`.
+Потребители — ai-box-data-registry и корпоративная вики
+(ai-box-template-wiki-global) — ходят на `http://graphiti-sidecar:8000`
+(изоляция потребителей — префиксы `group_id` и заголовок `X-Consumer`, контракт
+на стороне сайдкара). LLM-путь сайдкара — внутренний OpenAI-совместимый прокси
+ai-box `http://gateway:8085/api/internal/llm/v1` (env `GRAPHITI_*` в
+`env/<stend>/config.env`).
+
 **ollama-router** (Go-прокси + пул Ollama-инстансов, один на GPU) — тоже
 переезжает на этот сервер, **докеризуется** (решено): контейнер
 `ollama-router:11434` на сети `ecosystem` + ollama-контейнеры с привязкой
@@ -63,6 +73,7 @@ DB_HOST=mariadb
 REDIS_HOST=redis
 QDRANT_URL=http://qdrant:6333          # только data-registry
 NEO4J_BOLT_URL=bolt://neo4j:7687       # только data-registry (+ NEO4J_USER=neo4j, NEO4J_PASSWORD=<секрет стека>)
+GRAPHITI_BASE_URL=http://graphiti-sidecar:8000  # графовый инжест (data-registry, вики)
 BROWSERLESS_WS=ws://browserless:3000   # ai-box (demo)
 DATA_REGISTRY_URL=http://gateway:8083  # потребители DR
 MCP_URL=http://gateway:8084            # потребители MCP (в ai-box: AIBOX_MCP_URL)
