@@ -28,7 +28,7 @@
 **Interfaces:**
 - Produces: сервис compose `graphiti-sidecar` (env-переменные `GRAPHITI_*`, которые задача 2 раскладывает по стендам); цель `make up`, собирающая образ `aibox/graphiti-sidecar`.
 
-- [ ] **Step 1: Вставить сервис в docker-compose.yml**
+- [x] **Step 1: Вставить сервис в docker-compose.yml**
 
 В `docker-compose.yml` сразу ПОСЛЕ блока сервиса `neo4j` (он заканчивается строками `networks:\n      - ecosystem` перед комментарием `# php-fpm обработчика контактной формы лендинга`) вставить:
 
@@ -82,7 +82,7 @@
 
 Порты наружу/на loopback НЕ публиковать (потребители — только по сети `ecosystem`; диагностика — `docker exec`).
 
-- [ ] **Step 2: `--build` в цели `up` Makefile**
+- [x] **Step 2: `--build` в цели `up` Makefile**
 
 В `Makefile` заменить:
 
@@ -106,17 +106,17 @@ up: neo4j-plugins
 	$(COMPOSE) up -d --build
 ```
 
-- [ ] **Step 3: Валидация рендера compose**
+- [x] **Step 3: Валидация рендера compose**
 
 Run: `make config`
 Expected: печатает `[stand] local (env/local + …)` и exit 0. Если упало на `NEO4J_PASSWORD` — проверить, что запуск идёт на машине с заполненным `env/local/secrets.env` (it11 — заполнен).
 
-- [ ] **Step 4: Сборка образа**
+- [x] **Step 4: Сборка образа**
 
 Run: `docker compose --env-file env/local/config.env --env-file env/local/secrets.env build graphiti-sidecar`
 Expected: exit 0, в конце `docker image ls aibox/graphiti-sidecar` показывает образ. Build-контекст — `/var/www/html/ai-box-data-registry/sidecar/graphiti` (APPS_ROOT local = `/var/www/html`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docker-compose.yml Makefile
@@ -137,7 +137,7 @@ git commit -m "feat(compose): graphiti-sidecar как shared-сервис ряд
 - Consumes: переменные `GRAPHITI_*` из сервиса compose (задача 1).
 - Produces: заполненные слои; `env/doitai` — с пустыми кодами моделей до посадки `ai-box-back-pssf`.
 
-- [ ] **Step 1: env/example/config.env — документация блока**
+- [x] **Step 1: env/example/config.env — документация блока**
 
 В конец `env/example/config.env` дописать:
 
@@ -161,7 +161,7 @@ git commit -m "feat(compose): graphiti-sidecar как shared-сервис ряд
 #GRAPHITI_KNOWN_CONSUMERS=dr,wiki
 ```
 
-- [ ] **Step 2: env/example/secrets.env — комментарий про реальные ключи**
+- [x] **Step 2: env/example/secrets.env — комментарий про реальные ключи**
 
 В конец `env/example/secrets.env` дописать:
 
@@ -175,7 +175,7 @@ git commit -m "feat(compose): graphiti-sidecar как shared-сервис ряд
 
 (Именно комментарием, не пустыми ключами: пустое значение переопределило бы дефолт-заглушку compose и уронило сайдкар в краш-луп на старте.)
 
-- [ ] **Step 3: env/doitai/config.env — рабочие значения**
+- [x] **Step 3: env/doitai/config.env — рабочие значения**
 
 В конец `env/doitai/config.env` дописать:
 
@@ -195,7 +195,7 @@ GRAPHITI_DEFAULT_EMBEDDING_MODEL=
 GRAPHITI_DEFAULT_EMBEDDING_DIM=1024
 ```
 
-- [ ] **Step 4: env/local/config.env — dev-стенд**
+- [x] **Step 4: env/local/config.env — dev-стенд**
 
 В конец `env/local/config.env` дописать:
 
@@ -207,12 +207,12 @@ GRAPHITI_LLM_BASE_URL=http://gateway:8085/api/internal/llm/v1
 GRAPHITI_EMBEDDER_BASE_URL=http://gateway:8085/api/internal/llm/v1
 ```
 
-- [ ] **Step 5: Валидация**
+- [x] **Step 5: Валидация**
 
 Run: `make config`
 Expected: `[stand] local …`, exit 0.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add env/example/config.env env/example/secrets.env env/doitai/config.env env/local/config.env
@@ -228,22 +228,22 @@ git commit -m "feat(env): GRAPHITI_* по стендам (example, doitai, local
 **Interfaces:**
 - Consumes: сервис compose (задача 1), env local (задача 2).
 
-- [ ] **Step 1: Поднять стек**
+- [x] **Step 1: Поднять стек**
 
 Run: `make up`
 Expected: exit 0; образ пересобрался (или из кэша), контейнер `infra_graphiti` создан. Остальные сервисы не пересоздаются (env не менялся).
 
-- [ ] **Step 2: Дождаться healthy**
+- [x] **Step 2: Дождаться healthy**
 
 Run: `sleep 30 && docker ps --filter name=infra_graphiti --format '{{.Names}} {{.Status}}'`
 Expected: `infra_graphiti Up … (healthy)`. Если `unhealthy`/`Restarting` — `docker logs --tail 30 infra_graphiti` и остановиться: НЕ чинить наугад, зафиксировать вывод логов в отчёте.
 
-- [ ] **Step 3: /healthz изнутри контейнера**
+- [x] **Step 3: /healthz изнутри контейнера**
 
 Run: `docker exec infra_graphiti python -c "import urllib.request;print(urllib.request.urlopen('http://localhost:8000/healthz').status)"`
 Expected: `200`.
 
-- [ ] **Step 4: Санити DNS с сети ecosystem**
+- [x] **Step 4: Санити DNS с сети ecosystem**
 
 Run: `docker run --rm --network ecosystem curlimages/curl:latest -s -o /dev/null -w '%{http_code}\n' http://graphiti-sidecar:8000/healthz`
 Expected: `200`. (Если образа curl нет и его нельзя тянуть — допустимо пропустить шаг, отметив это в отчёте: DNS-имя равно имени сервиса и проверено шагом 3 косвенно.)
@@ -260,7 +260,7 @@ Expected: `200`. (Если образа curl нет и его нельзя тя�
 **Interfaces:**
 - Consumes: имена/порты из задачи 1.
 
-- [ ] **Step 1: Строка в таблицу «Состав стека»**
+- [x] **Step 1: Строка в таблицу «Состав стека»**
 
 В таблицу после строки `| neo4j | … |` добавить:
 
@@ -268,7 +268,7 @@ Expected: `200`. (Если образа curl нет и его нельзя тя�
 | graphiti-sidecar | aibox/graphiti-sidecar (build из `${APPS_ROOT}/ai-box-data-registry/sidecar/graphiti`) | только сеть `ecosystem` (`http://graphiti-sidecar:8000`), healthcheck `/healthz` |
 ```
 
-- [ ] **Step 2: Абзац в «Контракты для приложений»**
+- [x] **Step 2: Абзац в «Контракты для приложений»**
 
 После абзаца про `ai-box-pdn-cleaner` (заканчивается «…общий Redis (DB 6).») вставить:
 
@@ -283,7 +283,7 @@ ai-box `http://gateway:8085/api/internal/llm/v1` (env `GRAPHITI_*` в
 `env/<stend>/config.env`).
 ```
 
-- [ ] **Step 3: Строка в блок env-хостов**
+- [x] **Step 3: Строка в блок env-хостов**
 
 В код-блок «Хосты зависимостей в `.env` приложений» после строки `NEO4J_BOLT_URL=…` добавить:
 
@@ -291,7 +291,7 @@ ai-box `http://gateway:8085/api/internal/llm/v1` (env `GRAPHITI_*` в
 GRAPHITI_BASE_URL=http://graphiti-sidecar:8000  # графовый инжест (data-registry, вики)
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add README.md
@@ -312,7 +312,7 @@ git commit -m "docs(readme): контракты graphiti-sidecar (shared-сер�
 **Interfaces:**
 - Consumes: факты из задач 1-4.
 
-- [ ] **Step 1: Decision-страница**
+- [x] **Step 1: Decision-страница**
 
 Создать `.claude/wiki/decisions/graphiti-sidecar-shared.md`:
 
@@ -383,7 +383,7 @@ compose, `--build` в цели `up`; `--build` пересобирает толь
 - [[bead:ai-box-infra-vl8]] — перенос деплоя (этот репозиторий)
 ```
 
-- [ ] **Step 2: shared-stack.md**
+- [x] **Step 2: shared-stack.md**
 
 В `.claude/wiki/entities/shared-stack.md`:
 - в таблицу сервисов после строки `| neo4j | … |` добавить:
@@ -395,14 +395,14 @@ compose, `--build` в цели `up`; `--build` пересобирает толь
 - в секции «Makefile» заменить `` `up/down/logs`, `` на `` `up` (с `--build` — пересборка образа сайдкара из checkout'а DR)/`down`/`logs`, ``
 - `updated:` во frontmatter → `2026-08-08`.
 
-- [ ] **Step 3: contracts.md**
+- [x] **Step 3: contracts.md**
 
 В `.claude/wiki/concepts/contracts.md`:
 - в списке «Имена на сети ecosystem» в пункт «инфра-сервисы» после `browserless`, добавить `graphiti-sidecar:8000` (получится: `` `mariadb`, `redis`, `qdrant`, `browserless`, `graphiti-sidecar:8000` (графовый инжест: data-registry + вики), `gateway` … ``);
 - в секцию «Env-хосты в .env приложений» после `QDRANT_BASE_URL=…` добавить `` `GRAPHITI_BASE_URL=http://graphiti-sidecar:8000` (DR, вики), ``;
 - `updated:` → `2026-08-08`.
 
-- [ ] **Step 4: index.md**
+- [x] **Step 4: index.md**
 
 В секцию «Решения (`decisions/`)» после строки `[[decision:env-per-stend]]` добавить:
 
@@ -410,7 +410,7 @@ compose, `--build` в цели `up`; `--build` пересобирает толь
 - [[decision:graphiti-sidecar-shared]] — Graphiti-сайдкар как shared-сервис: сборка инфрой из репозитория DR, LLM через внутренний прокси ai-box.
 ```
 
-- [ ] **Step 5: log.md**
+- [x] **Step 5: log.md**
 
 В конец `.claude/wiki/log.md` дописать:
 
@@ -427,13 +427,13 @@ LLM — внутренний прокси ai-box (gateway:8085). Мотивац�
 [[concept:contracts]], README. Bead [[bead:ai-box-infra-vl8]].
 ```
 
-- [ ] **Step 6: wiki_refs в bead**
+- [x] **Step 6: wiki_refs в bead**
 
 ```bash
 bd update ai-box-infra-vl8 --metadata '{"wiki_refs":["decisions/graphiti-sidecar-shared.md","entities/shared-stack.md","concepts/contracts.md"]}'
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add .claude/wiki/ .beads/issues.jsonl
